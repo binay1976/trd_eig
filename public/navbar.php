@@ -5,7 +5,10 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
     session_start();
 }
 
-$displayUserName = $_SESSION['user_name'] ?? 'User Name';
+$displayUserName = $_SESSION['username']
+    ?? $_SESSION['user_name']
+    ?? $_SESSION['mobile']
+    ?? 'User Name';
 $displayRole = $_SESSION['role'] ?? 'User';
 
 // Get current page name for active menu highlighting

@@ -19,7 +19,7 @@ function loadPage(page) {
     switch (page) {
 
     case "home":
-        pageFile = "admin_home.php";
+        pageFile = "admin_dashboard.php";
         break;
 
     case "umbrella":

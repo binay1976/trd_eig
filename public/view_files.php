@@ -1,5 +1,5 @@
 <?php
-const UPLOAD_DIRECTORY = '/var/www/trd_eig/storage/umbrella_uploads';
+const UPLOAD_DIRECTORY = '/var/www/trd_eig/uploads/umbrella';
 
 $umbrellaId = trim($_GET['umbrella_id'] ?? '');
 $documentName = trim($_GET['document_name'] ?? '');
@@ -9,11 +9,7 @@ $allowedDocuments = [
     'Project Drawing',
     'Circuit Diagram'
 ];
-
-$allowedExtensions = [
-    'pdf', 'doc', 'docx', 'xls', 'xlsx',
-    'jpg', 'jpeg', 'png'
-];
+$allowedExtensions = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'jpg', 'jpeg', 'png'];
 
 if (
     !preg_match('/^[A-Za-z0-9_-]+$/', $umbrellaId) ||
@@ -23,15 +19,10 @@ if (
     exit('Invalid file request.');
 }
 
-$safeDocumentName = str_replace(' ', '_', $documentName);
-$pattern = UPLOAD_DIRECTORY . '/' .
-    $umbrellaId . '_' . $safeDocumentName . '.*';
-
-$files = glob($pattern);
-
+$safeDocumentName = preg_replace('/[^A-Za-z0-9_-]/', '_', $documentName);
+$files = glob(UPLOAD_DIRECTORY . '/' . $umbrellaId . '_' . $safeDocumentName . '.*');
 $files = array_filter($files, function ($file) use ($allowedExtensions) {
-    return is_file($file) &&
-        in_array(strtolower(pathinfo($file, PATHINFO_EXTENSION)), $allowedExtensions, true);
+    return is_file($file) && in_array(strtolower(pathinfo($file, PATHINFO_EXTENSION)), $allowedExtensions, true);
 });
 
 if (!$files) {
@@ -40,11 +31,10 @@ if (!$files) {
 }
 
 $filePath = reset($files);
-$mimeType = mime_content_type($filePath);
+$mimeType = mime_content_type($filePath) ?: 'application/octet-stream';
 
 header('Content-Type: ' . $mimeType);
 header('Content-Length: ' . filesize($filePath));
 header('Content-Disposition: inline; filename="' . basename($filePath) . '"');
-
 readfile($filePath);
 exit;

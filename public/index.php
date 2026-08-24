@@ -3,7 +3,7 @@ session_start();
 
 // If already logged in, redirect to home
 if (!empty($_SESSION['user_id'])) {
-    header('Location: /trd_eig/public/admin_home.php');
+    header('Location: /admin_home.php');
     exit;
 }
 
@@ -64,7 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login | EIG Module</title>
-    <link rel="stylesheet" href="/trd_eig/public/css/login.css">
+    <link rel="stylesheet" href="css/login.css">
 </head>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -124,7 +124,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <script>
     showWelcome(
         <?= json_encode($logged_in_user) ?>,
-        '/trd_eig/public/admin_home.php'
+        '/admin_home.php'
     );
 </script>
 <?php elseif ($login_error !== ''): ?>

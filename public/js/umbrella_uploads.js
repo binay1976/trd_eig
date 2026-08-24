@@ -1,97 +1,130 @@
-const MAX_UPLOAD_SIZE = 10 * 1024 * 1024;
-const ALLOWED_EXTENSIONS = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'jpg', 'jpeg', 'png'];
+// umbrella_uploads.js
 
-function loadUploadedFiles() {
-    const umbrellaId = document.getElementById('umbrellaId').value;
+// Convert "Project Approval" -> "Project_Approval" to match DOM element ids
+// generated in umbrella_uploads.php.
+function docNameToElId(name) {
+    return name.replace(/\s+/g, '_');
+}
 
-    document.querySelectorAll('[data-document]').forEach(function (input) {
-        const cellId = input.dataset.document.replaceAll(' ', '_');
-        const cell = document.getElementById(cellId);
-        cell.textContent = 'Not Uploaded';
-        cell.className = 'px-4 py-4 text-sm text-gray-500';
+// Reset every row in the table to its default "Not Uploaded" state.
+function resetTable() {
+    document.querySelectorAll('#uploadTableBody input[type="file"]').forEach((input) => {
+        const elId = docNameToElId(input.dataset.document);
+
+        const nameCell = document.getElementById(elId);
+        if (nameCell) nameCell.textContent = 'Not Uploaded';
+
+        const viewCell = document.getElementById('view_' + elId);
+        if (viewCell) viewCell.innerHTML = '<span class="text-gray-400">Not Available</span>';
     });
+}
 
-    if (!umbrellaId) {
-        return;
+// Fill in a single row with an uploaded file's info + a working view link.
+function applyUploadToRow(umbrellaId, documentName, originalName) {
+    const elId = docNameToElId(documentName);
+
+    const nameCell = document.getElementById(elId);
+    if (nameCell) nameCell.textContent = originalName;
+
+    const viewCell = document.getElementById('view_' + elId);
+    if (viewCell) {
+        viewCell.innerHTML = `<a href="view_files.php?umbrella_id=${encodeURIComponent(umbrellaId)}&document_name=${encodeURIComponent(documentName)}" target="_blank" rel="noopener"
+            class="text-blue-600 hover:underline font-medium">View</a>`;
     }
 }
 
-function handleUpload(input) {
+// Look up the document display name for a given document_id (slug) by
+// checking the data-doc-id attribute on the upload inputs.
+function documentNameFromId(documentId) {
+    const input = document.querySelector(`#uploadTableBody input[data-doc-id="${documentId}"]`);
+    return input ? input.dataset.document : null;
+}
+
+// Called on page load and whenever the Umbrella ID dropdown changes.
+async function loadUploadedFiles() {
+    const umbrellaId = document.getElementById('umbrellaId').value;
+
+    resetTable();
+
+    if (!umbrellaId) {
+        return;
+    }
+
+    try {
+        const res = await fetch(`get_uploads.php?umbrella_id=${encodeURIComponent(umbrellaId)}`);
+        const data = await res.json();
+
+        if (!data.success) {
+            Swal.fire({
+                title: 'Could Not Load Files',
+                text: data.message || 'Unable to load uploaded files.',
+                icon: 'error'
+            });
+            return;
+        }
+
+        data.uploads.forEach((row) => {
+            const documentName = documentNameFromId(row.document_id);
+            if (documentName) {
+                applyUploadToRow(umbrellaId, documentName, row.original_name);
+            }
+        });
+    } catch (err) {
+        console.error('Error loading uploaded files:', err);
+        Swal.fire({
+            title: 'Could Not Load Files',
+            text: 'Unable to load uploaded files for this Umbrella ID.',
+            icon: 'error'
+        });
+    }
+}
+
+// Called when a user selects a file from an <input type="file">.
+async function handleUpload(inputEl) {
     const umbrellaId = document.getElementById('umbrellaId').value;
 
     if (!umbrellaId) {
-        input.value = '';
-        Swal.fire({ title: 'Select Umbrella ID', text: 'Please select an Umbrella ID first.', icon: 'warning' });
+        alert('Please select an Umbrella ID before uploading.');
+        inputEl.value = '';
         return;
     }
 
-    if (!input.files.length) {
-        return;
-    }
+    const file = inputEl.files[0];
+    if (!file) return;
 
-    const file = input.files[0];
-    const extension = file.name.split('.').pop().toLowerCase();
+    const documentName = inputEl.dataset.document;
+    const documentId = inputEl.dataset.docId;
+    const elId = docNameToElId(documentName);
 
-    if (file.size > MAX_UPLOAD_SIZE) {
-        input.value = '';
-        Swal.fire({ title: 'File Too Large', text: 'The maximum file size is 10 MB.', icon: 'error' });
-        return;
-    }
-
-    if (!ALLOWED_EXTENSIONS.includes(extension)) {
-        input.value = '';
-        Swal.fire({ title: 'Invalid File Type', text: 'Allowed file types: PDF, Word, Excel, JPG and PNG.', icon: 'error' });
-        return;
-    }
-
-    const documentName = input.dataset.document;
-    const viewCell = document.getElementById(
-        'view_' + documentName.replaceAll(' ', '_')
-        );
-
-        viewCell.innerHTML = `
-            <a href="view_files.php?umbrella_id=${encodeURIComponent(umbrellaId)}&document_name=${encodeURIComponent(documentName)}"
-            target="_blank"
-            class="inline-block px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
-                View File
-            </a>
-        `;
+    const nameCell = document.getElementById(elId);
+    const originalText = nameCell ? nameCell.textContent : '';
+    if (nameCell) nameCell.textContent = 'Uploading...';
 
     const formData = new FormData();
     formData.append('umbrella_id', umbrellaId);
-    formData.append('document_name', input.dataset.document);
+    formData.append('document_id', documentId);
+    formData.append('document_name', documentName);
     formData.append('file', file);
-    formData.append('upload_type', 'umbrella');
-    // formData.append('upload_type', 'project');
-    // formData.append('upload_type', 'equipment');
-    input.disabled = true;
 
-    fetch('upload.php', { method: 'POST', body: formData, headers: { 'Accept': 'application/json' } })
-        .then(async function (response) {
-            const responseText = await response.text();
-            let data;
-            try {
-                data = JSON.parse(responseText);
-            } catch (error) {
-                throw new Error('The server returned an invalid upload response.');
-            }
-            if (!response.ok || !data.success) {
-                throw new Error(data.message || 'The upload failed.');
-            }
-            return data;
-        })
-        .then(function (data) {
-            const cellId = input.dataset.document.replaceAll(' ', '_');
-            const cell = document.getElementById(cellId);
-            cell.textContent = data.file_name;
-            cell.className = 'px-4 py-4 text-sm text-green-600 font-medium';
-            Swal.fire({ title: 'Upload Successful', text: data.message, icon: 'success' });
-        })
-        .catch(function (error) {
-            input.value = '';
-            Swal.fire({ title: 'Upload Failed', text: error.message, icon: 'error' });
-        })
-        .finally(function () {
-            input.disabled = false;
+    try {
+        const res = await fetch('upload_handler.php', {
+            method: 'POST',
+            body: formData,
         });
+        const data = await res.json();
+
+        if (!data.success) {
+            alert('Upload failed: ' + (data.message || 'Unknown error'));
+            if (nameCell) nameCell.textContent = originalText;
+            return;
+        }
+
+        applyUploadToRow(umbrellaId, documentName, data.original_name);
+    } catch (err) {
+        console.error('Upload error:', err);
+        alert('Upload failed. Please try again.');
+        if (nameCell) nameCell.textContent = originalText;
+    } finally {
+        inputEl.value = ''; // allow re-selecting the same file later
+    }
 }
