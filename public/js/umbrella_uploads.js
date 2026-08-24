@@ -44,10 +44,26 @@ function handleUpload(input) {
         return;
     }
 
+    const documentName = input.dataset.document;
+    const viewCell = document.getElementById(
+        'view_' + documentName.replaceAll(' ', '_')
+        );
+
+        viewCell.innerHTML = `
+            <a href="view_files.php?umbrella_id=${encodeURIComponent(umbrellaId)}&document_name=${encodeURIComponent(documentName)}"
+            target="_blank"
+            class="inline-block px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                View File
+            </a>
+        `;
+
     const formData = new FormData();
     formData.append('umbrella_id', umbrellaId);
     formData.append('document_name', input.dataset.document);
     formData.append('file', file);
+    formData.append('upload_type', 'umbrella');
+    // formData.append('upload_type', 'project');
+    // formData.append('upload_type', 'equipment');
     input.disabled = true;
 
     fetch('upload.php', { method: 'POST', body: formData, headers: { 'Accept': 'application/json' } })

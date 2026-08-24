@@ -43,6 +43,7 @@ $umbrellaIds = $pdo->query(
                         <th class="px-4 py-3 text-left">Name</th>
                         <th class="px-4 py-3 text-center w-48">Upload</th>
                         <th class="px-4 py-3 text-left">Uploaded File</th>
+                        <th class="px-4 py-3 text-center">View File</th>
                     </tr>
                 </thead>
 
@@ -52,6 +53,7 @@ $umbrellaIds = $pdo->query(
                         <td class="px-4 py-4 font-medium text-gray-700">Project Approval</td>
                         <td class="px-4 py-4 text-center"><label class="inline-block cursor-pointer px-4 py-2 bg-blue-950 text-white rounded-lg hover:bg-blue-600">Upload<input type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png" class="hidden" data-document="Project Approval" onchange="handleUpload(this)"></label></td>
                         <td id="Project_Approval" class="px-4 py-4 text-sm text-gray-500">Not Uploaded</td>
+                        <td class="px-4 py-4 text-center" id="view_Project_Approval"><span class="text-gray-400">Not Available</span></td>
                     </tr>
 
                     <tr class="border-b">
@@ -59,6 +61,7 @@ $umbrellaIds = $pdo->query(
                         <td class="px-4 py-4 font-medium text-gray-700">Project Drawing</td>
                         <td class="px-4 py-4 text-center"><label class="inline-block cursor-pointer px-4 py-2 bg-blue-950 text-white rounded-lg hover:bg-blue-600">Upload<input type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png" class="hidden" data-document="Project Drawing" onchange="handleUpload(this)"></label></td>
                         <td id="Project_Drawing" class="px-4 py-4 text-sm text-gray-500">Not Uploaded</td>
+                        <td class="px-4 py-4 text-center" id="view_Project_Approval"><span class="text-gray-400">Not Available</span></td>
                     </tr>
 
                     <tr class="border-b">
@@ -66,6 +69,7 @@ $umbrellaIds = $pdo->query(
                         <td class="px-4 py-4 font-medium text-gray-700">Circuit Diagram</td>
                         <td class="px-4 py-4 text-center"><label class="inline-block cursor-pointer px-4 py-2 bg-blue-950 text-white rounded-lg hover:bg-blue-600">Upload<input type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png" class="hidden" data-document="Circuit Diagram" onchange="handleUpload(this)"></label></td>
                         <td id="Circuit_Diagram" class="px-4 py-4 text-sm text-gray-500">Not Uploaded</td>
+                        <td class="px-4 py-4 text-center" id="view_Project_Approval"><span class="text-gray-400">Not Available</span></td>
                     </tr>
 
                     

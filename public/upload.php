@@ -2,7 +2,21 @@
 session_start();
 header('Content-Type: application/json');
 
-const UPLOAD_DIRECTORY = '/var/www/trd_eig/storage/umbrella_uploads';
+// const UPLOAD_DIRECTORY = '/var/www/trd_eig/storage/umbrella_uploads';
+$uploadFolders = [
+    'umbrella' => '/var/www/trd_eig/storage/umbrella_uploads',
+    'project'  => '/var/www/trd_eig/storage/project_uploads',
+    'equipment' => '/var/www/trd_eig/storage/equiments_uploads'
+];
+
+$uploadType = $_POST['upload_type'] ?? '';
+
+if (!isset($uploadFolders[$uploadType])) {
+    respond(false, 'Invalid upload destination.', 400);
+}
+
+$uploadDirectory = $uploadFolders[$uploadType];
+
 
 function respond(bool $success, string $message, int $status = 200, array $extra = [])
 {
@@ -73,13 +87,13 @@ if (!in_array($mimeType, $allowedMimeTypes[$extension], true)) {
 
 $safeDocumentName = str_replace(' ', '_', $documentName);
 $fileName = $umbrellaId . '_' . $safeDocumentName . '.' . $extension;
-$destination = UPLOAD_DIRECTORY . '/' . $fileName;
+$destination = $uploadDirectory . '/' . $fileName;
 
-if (!is_dir(UPLOAD_DIRECTORY) && !mkdir(UPLOAD_DIRECTORY, 0775, true)) {
+if (!is_dir($uploadDirectory) && !mkdir($uploadDirectory, 0775, true)) {
     respond(false, 'Upload folder is not available on the server.', 500);
 }
 
-if (!is_writable(UPLOAD_DIRECTORY)) {
+if (!is_writable($uploadDirectory)) {
     respond(false, 'Upload folder is not writable by the web server.', 500);
 }
 

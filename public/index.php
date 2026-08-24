@@ -3,7 +3,7 @@ session_start();
 
 // If already logged in, redirect to home
 if (!empty($_SESSION['user_id'])) {
-    header('Location: /admin_home.php');
+    header('Location: /trd_eig/public/admin_home.php');
     exit;
 }
 
@@ -15,19 +15,19 @@ $logged_in_user = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
-    $user_name = trim($_POST['user_name'] ?? '');
+    $mobile = trim($_POST['mobile'] ?? '');
     $password  = $_POST['password'] ?? '';
 
-    if ($user_name === '' || $password === '') {
-        $login_error = 'Please enter both username and password.';
+    if ($mobile === '' || $password === '') {
+        $login_error = 'Please enter both mobile number and password.';
     } else {
         $stmt = $pdo->prepare(
-            "SELECT id, user_name, password, role, div_name, Zone, status
+            "SELECT id, user_name, mobile, password, role, div_name, Zone, desig, status
              FROM users
-             WHERE user_name = ?
+             WHERE mobile = ?
              LIMIT 1"
         );
-        $stmt->execute([$user_name]);
+        $stmt->execute([$mobile]);
         $user = $stmt->fetch();
 
         if ($user && password_verify($password, $user['password'])) {
@@ -37,24 +37,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 // Store session data
                 $_SESSION['user_id']   = $user['id'];
-                $_SESSION['user_name'] = $user['user_name'];
+                $_SESSION['username']  = $user['user_name'];
+                $_SESSION['mobile']    = $user['mobile'];
                 $_SESSION['role']      = $user['role'];
                 $_SESSION['div_name']  = $user['div_name'];
                 $_SESSION['zone']      = $user['Zone'];
+                $_SESSION['desig']     = $user['desig'];
 
                 $login_success  = true;
                 $logged_in_user = $user['user_name'];
             }
 
         } else {
-            $login_error = 'Invalid username or password.';
+            $login_error = 'Invalid mobile number or password.';
         }
     }
 }
 ?>
 
 
-
+<!-- This is UI Code--------------------------------------------------------------------------------- -->
 
 <!DOCTYPE html>
 <html lang="en">
@@ -62,11 +64,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login | EIG Module</title>
-    <link rel="stylesheet" href="/css/login.css">
+    <link rel="stylesheet" href="/trd_eig/public/css/login.css">
 </head>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-<script src="/js/swal.js"></script>
+<script src="/trd_eig/public/js/swal.js"></script>
 
 <body>
 
@@ -80,14 +82,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         <form method="POST" action="" id="loginForm">
             <div class="form-group">
-                <label for="user_name">Username</label>
+                <label for="mobile">Registered Mobile No.</label>
                 <input
-                    type="text"
-                    id="user_name"
-                    name="user_name"
-                    placeholder="Enter username"
-                    autocomplete="username"
-                    value="<?= htmlspecialchars($_POST['user_name'] ?? '') ?>"
+                    type="number"
+                    id="mobile"
+                    name="mobile"
+                    placeholder="Enter Registered Mobile Number"
+                    autocomplete="mobile"
+                    value="<?= htmlspecialchars($_POST['mobile'] ?? '') ?>"
                     required
                 >
             </div>
@@ -116,11 +118,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 
 
+
+<!-- This is Alert Fuction Scripts-------------------------------------------------------------------- -->
 <?php if ($login_success): ?>
 <script>
     showWelcome(
         <?= json_encode($logged_in_user) ?>,
-        '/admin_home.php'
+        '/trd_eig/public/admin_home.php'
     );
 </script>
 <?php elseif ($login_error !== ''): ?>
