@@ -1,0 +1,67 @@
+
+# Ignore env files
+admin_env/
+
+
+# Ignore all __pycache__ folders recursively
+/__pycache__x
+*.exe
+*.pkg
+/build/
+/dist/
+
+uploads/*
+!uploads/.gitkeep
+
+
+# ==========================================
+# PHP Application
+# ==========================================
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Local configuration files
+config.php
+database.php
+config/database.php
+
+# ==========================================
+# Uploaded Files
+# ==========================================
+
+uploads/*
+!uploads/.gitkeep
+
+# ==========================================
+# Logs
+# ==========================================
+
+*.log
+logs/
+
+# ==========================================
+# OS Files
+# ==========================================
+
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ==========================================
+# IDE / Editor
+# ==========================================
+
+.vscode/
+.idea/
+
+# ==========================================
+# Temporary Files
+# ==========================================
+
+*.tmp
+*.temp
+*.bak
+*.swp

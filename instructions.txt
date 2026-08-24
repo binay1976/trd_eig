@@ -1,0 +1,37 @@
+echo "# trd_eig" >> README.md
+git init
+git add README.md
+git commit -m "first commit"
+git branch -M main
+git remote add origin https://github.com/binay1976/trd_eig.git
+git push -u origin main
+
+
+Pull From Server :- 
+scp -i "C:\Users\tc312\.ssh\etro_key" -r bdts1022@10.3.184.218:/var/www/trd_eig/* "C:\Users\tc312\Desktop\trd_eig\"
+
+Push to Server:- 
+scp -i "C:\Users\tc312\.ssh\etro_key" -r "C:\Users\tc312\Desktop\trd_eig\*" bdts1022@10.3.184.218:/var/www/trd_eig/
+
+/var/www/trd_eig
+/var/www/trd_eig/app/
+/var/www/trd_eig/config/
+/var/www/trd_eig/public/
+/var/www/trd_eig/storage/
+
+
+sudo nano /etc/nginx/sites-available/trd_eig
+sudo nginx -t
+sudo systemctl reload nginx
+bdts1022@spmapp:/var/www/trd_eig/public/images$ sudo -u www-data test -r /var/www/trd_eig/public/images/login_page_BG.png && echo "READABLE" || echo "NOT READABLE"
+
+sudo chmod 755 /var/www/trd_eig
+sudo chmod 755 /var/www/trd_eig/public
+sudo chmod 755 /var/www/trd_eig/public/images
+sudo chmod 644 /var/www/trd_eig/public/images/login_page_BG.png
+
+
+scp -i "C:\Users\tc312\.ssh\etro_key" -r "C:\Users\tc312\Desktop\trd_eig\public\*" bdts1022@10.3.184.218:/var/www/trd_eig/public/
+
+php -S localhost:8000
+http://localhost:8000
