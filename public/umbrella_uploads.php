@@ -50,22 +50,22 @@ $umbrellaIds = $pdo->query(
                     <tr class="border-b">
                         <td class="px-4 py-4">1</td>
                         <td class="px-4 py-4 font-medium text-gray-700">Project Approval</td>
-                        <td class="px-4 py-4 text-center"><label class="inline-block cursor-pointer px-4 py-2 bg-blue-950 text-white rounded-lg hover:bg-blue-600">Upload<input type="file" class="hidden" onchange="handleUpload(this, 1)"></label></td>
-                        <td id="fileName1" class="px-4 py-4 text-sm text-gray-500">Not Uploaded</td>
+                        <td class="px-4 py-4 text-center"><label class="inline-block cursor-pointer px-4 py-2 bg-blue-950 text-white rounded-lg hover:bg-blue-600">Upload<input type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png" class="hidden" data-document="Project Approval" onchange="handleUpload(this)"></label></td>
+                        <td id="Project_Approval" class="px-4 py-4 text-sm text-gray-500">Not Uploaded</td>
                     </tr>
 
                     <tr class="border-b">
                         <td class="px-4 py-4">1</td>
-                        <td class="px-4 py-4 font-medium text-gray-700">Project Approval</td>
-                        <td class="px-4 py-4 text-center"><label class="inline-block cursor-pointer px-4 py-2 bg-blue-950 text-white rounded-lg hover:bg-blue-600">Upload<input type="file" class="hidden" onchange="handleUpload(this, 1)"></label></td>
-                        <td id="fileName1" class="px-4 py-4 text-sm text-gray-500">Not Uploaded</td>
+                        <td class="px-4 py-4 font-medium text-gray-700">Project Drawing</td>
+                        <td class="px-4 py-4 text-center"><label class="inline-block cursor-pointer px-4 py-2 bg-blue-950 text-white rounded-lg hover:bg-blue-600">Upload<input type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png" class="hidden" data-document="Project Drawing" onchange="handleUpload(this)"></label></td>
+                        <td id="Project_Drawing" class="px-4 py-4 text-sm text-gray-500">Not Uploaded</td>
                     </tr>
 
                     <tr class="border-b">
                         <td class="px-4 py-4">1</td>
-                        <td class="px-4 py-4 font-medium text-gray-700">Project Approval</td>
-                        <td class="px-4 py-4 text-center"><label class="inline-block cursor-pointer px-4 py-2 bg-blue-950 text-white rounded-lg hover:bg-blue-600">Upload<input type="file" class="hidden" onchange="handleUpload(this, 1)"></label></td>
-                        <td id="fileName1" class="px-4 py-4 text-sm text-gray-500">Not Uploaded</td>
+                        <td class="px-4 py-4 font-medium text-gray-700">Circuit Diagram</td>
+                        <td class="px-4 py-4 text-center"><label class="inline-block cursor-pointer px-4 py-2 bg-blue-950 text-white rounded-lg hover:bg-blue-600">Upload<input type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png" class="hidden" data-document="Circuit Diagram" onchange="handleUpload(this)"></label></td>
+                        <td id="Circuit_Diagram" class="px-4 py-4 text-sm text-gray-500">Not Uploaded</td>
                     </tr>
 
                     
@@ -76,216 +76,5 @@ $umbrellaIds = $pdo->query(
 </div>
 
 
-<!-- <script>
+<script src="js/umbrella_uploads.js"></script>
 
-    /*
-    -------------------------------------------------------
-    Temporary demo storage
-    -------------------------------------------------------
-    Replace this later with PHP/MySQL data.
-    */
-
-    const uploadedFiles = {
-
-        "UMB-001": {
-            1: "Project_Approval.pdf",
-            2: "Estimate.pdf"
-        },
-
-        "UMB-002": {
-            1: "Approval_Letter.pdf",
-            3: "Drawing.pdf"
-        },
-
-        "UMB-003": {},
-
-        "UMB-004": {
-            4: "Sanction_Letter.pdf"
-        }
-
-    };
-
-
-    /*
-    -------------------------------------------------------
-    Load Previously Uploaded Files
-    -------------------------------------------------------
-    */
-
-    function loadUploadedFiles() {
-
-        const umbrellaId =
-            document.getElementById("umbrellaId").value;
-
-
-        // Clear all file names
-
-        for (let i = 1; i <= 4; i++) {
-
-            const element =
-                document.getElementById("fileName" + i);
-
-            element.textContent = "Not Uploaded";
-
-            element.classList.remove(
-                "text-green-600",
-                "font-medium"
-            );
-
-            element.classList.add("text-gray-500");
-
-        }
-
-
-        // Nothing selected
-
-        if (!umbrellaId) {
-            return;
-        }
-
-
-        // Get files for selected Umbrella ID
-
-        const files =
-            uploadedFiles[umbrellaId] || {};
-
-
-        // Display previously uploaded files
-
-        Object.keys(files).forEach(function(srNo) {
-
-            const element =
-                document.getElementById(
-                    "fileName" + srNo
-                );
-
-            element.textContent =
-                files[srNo];
-
-            element.classList.remove(
-                "text-gray-500"
-            );
-
-            element.classList.add(
-                "text-green-600",
-                "font-medium"
-            );
-
-        });
-
-    }
-
-
-    /*
-    -------------------------------------------------------
-    Handle New Upload
-    -------------------------------------------------------
-    */
-
-    function handleUpload(input, srNo) {
-
-        const umbrellaId =
-            document.getElementById("umbrellaId").value;
-
-
-        // Require Umbrella ID
-
-        if (!umbrellaId) {
-
-            alert("Please select Umbrella ID first.");
-
-            input.value = "";
-
-            return;
-
-        }
-
-
-        // Check file
-
-        if (!input.files.length) {
-            return;
-        }
-
-
-        const file =
-            input.files[0];
-
-
-        /*
-        Display filename immediately
-        */
-
-        const element =
-            document.getElementById(
-                "fileName" + srNo
-            );
-
-
-        element.textContent =
-            file.name;
-
-        element.classList.remove(
-            "text-gray-500"
-        );
-
-        element.classList.add(
-            "text-green-600",
-            "font-medium"
-        );
-
-
-        /*
-        Store temporarily
-        */
-
-        if (!uploadedFiles[umbrellaId]) {
-
-            uploadedFiles[umbrellaId] = {};
-
-        }
-
-
-        uploadedFiles[umbrellaId][srNo] =
-            file.name;
-
-
-        console.log(
-            "Umbrella ID:",
-            umbrellaId
-        );
-
-        console.log(
-            "Sr No:",
-            srNo
-        );
-
-        console.log(
-            "File:",
-            file.name
-        );
-
-
-        /*
-        ---------------------------------------------------
-        IMPORTANT:
-        Here you will later send the file to PHP.
-        ---------------------------------------------------
-
-        Example:
-
-        const formData = new FormData();
-
-        formData.append("umbrella_id", umbrellaId);
-        formData.append("sr_no", srNo);
-        formData.append("file", file);
-
-        fetch("upload.php", {
-            method: "POST",
-            body: formData
-        });
-
-        */
-
-    }
-</script> -->
