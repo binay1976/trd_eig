@@ -64,7 +64,7 @@ if (isset($_GET['project_id'])) {
 require_once __DIR__ . '/../config/database.php';
 $umbrellas = [];
 try {
-    $stmt = $pdo->query("SELECT umbrella_id FROM umbrella_projects ORDER BY umbrella_id ASC");
+    $stmt = $pdo->query("SELECT common_id AS umbrella_id FROM umbrella_projects ORDER BY common_id ASC");
     $umbrellas = $stmt->fetchAll();
 } catch (Exception $e) {
     $umbrellas = [];

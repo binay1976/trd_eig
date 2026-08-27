@@ -1,7 +1,9 @@
 <?php
-const UPLOAD_DIRECTORY = '/var/www/trd_eig/uploads/umbrella';
+const UPLOAD_ROOT = __DIR__ . '/../uploads';
 
-$umbrellaId = trim($_GET['umbrella_id'] ?? '');
+$isProject = isset($_GET['project_id']);
+$targetId = trim($_GET[$isProject ? 'project_id' : 'umbrella_id'] ?? '');
+$validationId = str_replace(['\\', '|'], '', $targetId);
 $documentName = trim($_GET['document_name'] ?? '');
 
 $allowedDocuments = [
@@ -12,7 +14,7 @@ $allowedDocuments = [
 $allowedExtensions = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'jpg', 'jpeg', 'png'];
 
 if (
-    !preg_match('/^[A-Za-z0-9_-]+$/', $umbrellaId) ||
+    !preg_match('/^[A-Za-z0-9_-]+$/', $validationId) ||
     !in_array($documentName, $allowedDocuments, true)
 ) {
     http_response_code(400);
@@ -20,7 +22,9 @@ if (
 }
 
 $safeDocumentName = preg_replace('/[^A-Za-z0-9_-]/', '_', $documentName);
-$files = glob(UPLOAD_DIRECTORY . '/' . $umbrellaId . '_' . $safeDocumentName . '.*');
+$safeTargetId = preg_replace('/[^A-Za-z0-9_-]/', '_', $targetId);
+$uploadDirectory = $isProject ? 'project' : 'umbrella';
+$files = glob(UPLOAD_ROOT . '/' . $uploadDirectory . '/' . $safeTargetId . '_' . $safeDocumentName . '.*');
 $files = array_filter($files, function ($file) use ($allowedExtensions) {
     return is_file($file) && in_array(strtolower(pathinfo($file, PATHINFO_EXTENSION)), $allowedExtensions, true);
 });

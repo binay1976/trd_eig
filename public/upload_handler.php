@@ -1,86 +1,64 @@
 <?php
-
 session_start();
-
 header('Content-Type: application/json; charset=utf-8');
-
 require_once __DIR__ . '/../config/database.php';
 
 
-/*
-|--------------------------------------------------------------------------
-| JSON Error Response
-|--------------------------------------------------------------------------
-*/
-
+// | JSON Error Response 
 function fail(string $message, int $code = 400): void
 {
     http_response_code($code);
-
     echo json_encode([
         'success' => false,
         'message' => $message
     ]);
-
     exit;
 }
 
-
-/*
-|--------------------------------------------------------------------------
-| Only POST allowed
-|--------------------------------------------------------------------------
-*/
-
+// | Only POST allowed 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-
     fail(
         'Invalid request method.',
         405
     );
 }
 
-
-/*
-|--------------------------------------------------------------------------
-| Input
-|--------------------------------------------------------------------------
-*/
-
-$umbrellaId = trim(
-    $_POST['umbrella_id'] ?? ''
+// | Input
+$targetId = trim(
+    $_POST['project_id'] ?? $_POST['umbrella_id'] ?? ''
 );
-
 $documentId = trim(
     $_POST['document_id'] ?? ''
 );
-
 $documentName = trim(
     $_POST['document_name'] ?? ''
 );
+$uploadType = strtoupper(trim(
+    $_POST['upload_type'] ?? $_POST['type'] ?? ''
+));
 
+if ($uploadType === '') {
+    $uploadType = isset($_POST['project_id']) ? 'PID' : 'UPID';
+}
+
+$uploadDirectory = $uploadType === 'PID'
+    ? 'uploads/project/'
+    : 'uploads/umbrella/';
 
 if (
-    $umbrellaId === '' ||
+    $targetId === '' ||
     $documentId === ''
 ) {
-
     fail(
-        'Umbrella ID and document type are required.'
+        'Project or Umbrella ID and document type are required.'
     );
 }
 
 
-/*
-|--------------------------------------------------------------------------
-| File Validation
-|--------------------------------------------------------------------------
-*/
-
+/* File Validation */
 if (
     !isset($_FILES['file'])
 ) {
-
     fail(
         'No file was received.'
     );
@@ -88,52 +66,33 @@ if (
 
 
 $file = $_FILES['file'];
-
-
 if (
     $file['error'] !== UPLOAD_ERR_OK
 ) {
-
     $errors = [
-
         UPLOAD_ERR_INI_SIZE =>
             'File exceeds the server upload limit.',
-
         UPLOAD_ERR_FORM_SIZE =>
             'File exceeds the allowed size.',
-
         UPLOAD_ERR_PARTIAL =>
             'File was only partially uploaded.',
-
         UPLOAD_ERR_NO_FILE =>
             'No file was selected.',
-
         UPLOAD_ERR_NO_TMP_DIR =>
             'Temporary upload directory is missing.',
-
         UPLOAD_ERR_CANT_WRITE =>
             'Server cannot write the uploaded file.',
-
         UPLOAD_ERR_EXTENSION =>
             'PHP stopped the file upload.'
     ];
-
-
     fail(
         $errors[$file['error']]
         ?? 'File upload failed.'
     );
 }
 
-
-/*
-|--------------------------------------------------------------------------
-| File Settings
-|--------------------------------------------------------------------------
-*/
-
+/*| File Settings */
 $allowedExtensions = [
-
     'pdf',
     'doc',
     'docx',
@@ -144,16 +103,10 @@ $allowedExtensions = [
     'png'
 
 ];
-
-
 $maxFileSize =
     50 * 1024 * 1024; // 50 MB
-
-
 $originalName =
     basename($file['name']);
-
-
 $extension =
     strtolower(
         pathinfo(
@@ -162,13 +115,7 @@ $extension =
         )
     );
 
-
-/*
-|--------------------------------------------------------------------------
-| Extension Validation
-|--------------------------------------------------------------------------
-*/
-
+// | Extension Validation
 if (
     !in_array(
         $extension,
@@ -182,13 +129,7 @@ if (
     );
 }
 
-
-/*
-|--------------------------------------------------------------------------
-| File Size Validation
-|--------------------------------------------------------------------------
-*/
-
+// | File Size Validation
 if (
     $file['size'] > $maxFileSize
 ) {
@@ -199,55 +140,30 @@ if (
 }
 
 
-/*
-|--------------------------------------------------------------------------
-| Storage
-|
-| Actual location:
-|
-| /var/www/trd_eig/uploads/umbrella/
-|--------------------------------------------------------------------------
-*/
-
+/* Actual location: /var/www/trd_eig/uploads/umbrella/    */
 $baseUploadDir =
     dirname(__DIR__) .
-    '/uploads/umbrella/';
+    '/' . $uploadDirectory;
 
-
-/*
-|--------------------------------------------------------------------------
-| Safe Umbrella ID
-|--------------------------------------------------------------------------
-*/
-
+/* | Safe Umbrella ID */
 $safeUmbrellaId =
     preg_replace(
         '/[^A-Za-z0-9_-]/',
         '_',
-        $umbrellaId
+        $targetId
     );
-
-
 if (
     $safeUmbrellaId === ''
 ) {
-
     fail(
         'Invalid Umbrella ID.'
     );
 }
 
-
-/*
-|--------------------------------------------------------------------------
-| Create Base Folder
-|--------------------------------------------------------------------------
-*/
-
+/*| Create Base Folder */
 if (
     !is_dir($baseUploadDir)
 ) {
-
     if (
         !mkdir(
             $baseUploadDir,
@@ -255,7 +171,6 @@ if (
             true
         )
     ) {
-
         fail(
             'Could not create upload storage.',
             500
@@ -264,51 +179,31 @@ if (
 }
 
 
-/*
-|--------------------------------------------------------------------------
-| Check Base Folder
-|--------------------------------------------------------------------------
-*/
-
+/* | Check Base Folder   */
 if (
     !is_writable($baseUploadDir)
 ) {
-
     fail(
         'Upload storage is not writable.',
         500
     );
 }
 
-
-/*
-|--------------------------------------------------------------------------
-| Generate Stored Filename
-|--------------------------------------------------------------------------
-*/
-
+/* | Generate Stored Filename   */
 $safeDocumentName = preg_replace(
     '/[^A-Za-z0-9_-]/',
     '_',
     $documentName
 );
-
 $storedName =
     $safeUmbrellaId . '_' .
     $safeDocumentName . '.' .
     $extension;
-
-
 $destPath =
     $baseUploadDir .
     $storedName;
 
-
-/*
-|--------------------------------------------------------------------------
-| Move File
-|--------------------------------------------------------------------------
-*/
+/* Move File  */
 
 if (
     !move_uploaded_file(
@@ -316,7 +211,6 @@ if (
         $destPath
     )
 ) {
-
     fail(
         'Could not save uploaded file.',
         500
@@ -324,26 +218,17 @@ if (
 }
 
 
-/*
-|--------------------------------------------------------------------------
-| File Information
-|--------------------------------------------------------------------------
-*/
 
+// | File Information
 $mimeType =
     mime_content_type(
         $destPath
     );
-
-
 if (!$mimeType) {
-
     $mimeType =
         $file['type']
         ?? 'application/octet-stream';
 }
-
-
 $fileSize =
     $file['size'];
 
@@ -357,9 +242,8 @@ $fileSize =
 | /var/www/trd_eig
 |--------------------------------------------------------------------------
 */
-
 $relativePath =
-    'uploads/umbrella/' .
+    $uploadDirectory .
     $storedName;
 
 
@@ -369,10 +253,8 @@ $relativePath =
 |--------------------------------------------------------------------------
 */
 
-$uploadedBy =
-    $_SESSION['user_id']
-    ?? 'system';
 
+$uploadedBy = trim(($_SESSION['username'] ?? '') . '\\' . ($_SESSION['executing_agency'] ?? '') . '\\' . ($_SESSION['desig'] ?? '')) ?: null;
 
 /*
 |--------------------------------------------------------------------------
@@ -392,27 +274,23 @@ try {
         SELECT
             id,
             file_path
-        FROM umbrella_uploads
-        WHERE umbrella_id = ?
+                FROM project_uploads
+                    WHERE type = ?
+                AND project_id = ?
           AND document_id = ?
         LIMIT 1
     ");
 
 
     $stmt->execute([
-
-        $umbrellaId,
-
+        $uploadType,
+        $targetId,
         $documentId
-
     ]);
-
-
     $existing =
         $stmt->fetch(
             PDO::FETCH_ASSOC
         );
-
 
     /*
     |--------------------------------------------------------------------------
@@ -423,8 +301,7 @@ try {
     if ($existing) {
 
         $update = $pdo->prepare("
-            UPDATE umbrella_uploads
-
+            UPDATE project_uploads
             SET
                 original_name = ?,
                 stored_name = ?,
@@ -433,27 +310,16 @@ try {
                 mime_type = ?,
                 uploaded_by = ?,
                 uploaded_at = NOW()
-
             WHERE id = ?
         ");
-
-
         $update->execute([
-
             $originalName,
-
             $storedName,
-
             $relativePath,
-
             $fileSize,
-
             $mimeType,
-
             $uploadedBy,
-
             $existing['id']
-
         ]);
 
 
@@ -503,9 +369,10 @@ try {
     else {
 
         $insert = $pdo->prepare("
-            INSERT INTO umbrella_uploads
+            INSERT INTO project_uploads
             (
-                umbrella_id,
+                type,
+                project_id,
                 document_id,
                 original_name,
                 stored_name,
@@ -526,27 +393,21 @@ try {
                 ?,
                 ?,
                 ?,
+                ?,
                 NOW()
             )
         ");
 
 
         $insert->execute([
-
-            $umbrellaId,
-
+            $uploadType,
+            $targetId,
             $documentId,
-
             $originalName,
-
             $storedName,
-
             $relativePath,
-
             $fileSize,
-
             $mimeType,
-
             $uploadedBy
 
         ]);

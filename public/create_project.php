@@ -1,4 +1,10 @@
 <?php
+// Create Project form. Generates a type='PID' row in the same
+// umbrella_projects table as umbrellas — common_id is a composite
+// "{parent umbrella's common_id}||PID\{category}\{type_project}\{seq}",
+// which is what lets a project's parent be recovered without a JOIN
+// (see add_equipment.php's strstr() on '||PID\').
+
 // ── Handle POST (AJAX submission) ────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
@@ -13,13 +19,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // =========================================================
     // 1. Collect inputs
     // =========================================================
-    $umbrella_id      = trim($_POST['umbrella_id']      ?? '');
-    $project_category = trim($_POST['project_category'] ?? ''); // OHE or PSI
+    $parent_umbrella_id = trim($_POST['umbrella_id']      ?? '');
+    $project_category   = trim($_POST['project_category'] ?? ''); // OHE or PSI
     $type_project      = trim($_POST['type_project']    ?? ''); // TSS/SP/SSP/FP/AT/Back-Charging/OHE
     $project_type     = trim($_POST['project_type']     ?? '');
     $location         = trim($_POST['location']         ?? '');
     $executing_agency = trim($_POST['executing_agency'] ?? '');
-
     $from_station     = trim($_POST['from_station']     ?? '');
     $to_station       = trim($_POST['to_station']       ?? '');
     $station          = trim($_POST['station']          ?? '');
@@ -29,13 +34,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $route_km         = trim($_POST['route_km']         ?? '');
     $track_km         = trim($_POST['track_km']         ?? '');
 
-    $created_by = trim(($_SESSION['username'] ?? '') . '-' . ($_SESSION['desig'] ?? '')) ?: null;
+    $created_by = trim(($_SESSION['username'] ?? '') . '-' . ($_SESSION['executing_agency'] ?? '') . '-' . ($_SESSION['desig'] ?? '')) ?: null;
 
     // =========================================================
     // 2. Validate required fields (category-dependent)
     // =========================================================
     $required = [
-        'Umbrella ID'      => $umbrella_id,
+        'Umbrella ID'      => $parent_umbrella_id,
         'Project Category' => $project_category,
         'Type of Project'  => $type_project,
         'Project Type'     => $project_type,
@@ -64,7 +69,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // 3. Build project_data JSON (mirrors create_umbrella.php pattern)
     // =========================================================
     $project_data = [
+        'parent_umbrella_id' => $parent_umbrella_id,
         'project_category' => $project_category,
+        'type_project'     => $type_project,
         'project_type'     => $project_type,
         'location'         => $location,
         'from_station'     => $project_category === 'OHE' ? $from_station : null,
@@ -86,7 +93,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // =========================================================
-    // 4. Generate Project ID: {umbrella_id}-{type_project}-{A/B/C...}
+    // 4. Generate Project ID: {umbrella_id}||PID\{project_category}\{type_project}\{A/B/C...}
     // =========================================================
     function num_to_alpha(int $n): string {
         $result = '';
@@ -99,38 +106,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         return $result;
     }
 
-    $id_prefix = "{$umbrella_id}-{$type_project}";
+    $id_prefix = "{$parent_umbrella_id}||PID\\{$project_category}\\{$type_project}";
 
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM projects WHERE project_id LIKE ?");
-    $stmt->execute([$id_prefix . '-%']);
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM umbrella_projects WHERE type = 'PID' AND LEFT(common_id, CHAR_LENGTH(?)) = ?");
+    $stmt->execute([$id_prefix, $id_prefix]);
     $count = (int) $stmt->fetchColumn();
 
-    $project_id = "{$id_prefix}-" . num_to_alpha($count);
+    $project_id = "{$id_prefix}\\" . num_to_alpha($count);
 
     // Ensure uniqueness
     while (true) {
-        $check = $pdo->prepare("SELECT project_id FROM projects WHERE project_id = ? LIMIT 1");
+        $check = $pdo->prepare("SELECT id FROM umbrella_projects WHERE type = 'PID' AND common_id = ? LIMIT 1");
         $check->execute([$project_id]);
         if (!$check->fetch()) break;
         $count++;
-        $project_id = "{$id_prefix}-" . num_to_alpha($count);
+        $project_id = "{$id_prefix}\\" . num_to_alpha($count);
     }
 
-    // =========================================================
-    // 5. Insert into database (project_id, umbrella_id, type_project
-    //    stay real columns; everything else lives in project_data JSON)
-    // =========================================================
+    // Local-only identifier (no parent common_id prefix) for the unique_id column
+    $unique_form_id = "PID\\{$project_category}\\{$type_project}\\" . num_to_alpha($count);
+
     try {
+        $type = 'PID';
+
         $insert = $pdo->prepare("
-            INSERT INTO projects (
-                project_id, umbrella_id, type_project, status, created_by, updated_by, project_data
-            ) VALUES (?, ?, ?, 1, ?, ?, ?)
+            INSERT INTO umbrella_projects (
+                type, type_project, common_id, unique_id, created_by, updated_by, project_data
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
         ");
 
         $insert->execute([
-            $project_id,
-            $umbrella_id,
+            $type,
             $type_project,
+            $project_id,
+            $unique_form_id,
             $created_by,
             $created_by,
             $project_json,
@@ -155,7 +164,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 require_once __DIR__ . '/../config/database.php';
 
 try {
-    $umbrellas = $pdo->query("SELECT umbrella_id FROM umbrella_projects ORDER BY umbrella_id ASC")->fetchAll();
+    $umbrellas = $pdo->query("SELECT common_id AS umbrella_id FROM umbrella_projects WHERE type = 'UPID' ORDER BY common_id ASC")->fetchAll();
 } catch (Exception $e) {
     $umbrellas = [];
 }

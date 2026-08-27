@@ -1,9 +1,17 @@
-// umbrella_uploads.js
-
-// Convert "Project Approval" -> "Project_Approval" to match DOM element ids
-// generated in umbrella_uploads.php.
 function docNameToElId(name) {
     return name.replace(/\s+/g, '_');
+}
+
+function getUploadContext() {
+    const projectPage = document.getElementById('projectUploadPage');
+    const isProject = Boolean(projectPage);
+
+    return {
+        id: document.getElementById(isProject ? 'projectId' : 'umbrellaId'),
+        parameter: isProject ? 'project_id' : 'umbrella_id',
+        type: isProject ? 'PID' : 'UPID',
+        directory: isProject ? '/uploads/project' : '/uploads/umbrella'
+    };
 }
 
 // Reset every row in the table to its default "Not Uploaded" state.
@@ -20,7 +28,7 @@ function resetTable() {
 }
 
 // Fill in a single row with an uploaded file's info + a working view link.
-function applyUploadToRow(umbrellaId, documentName, originalName) {
+function applyUploadToRow(targetId, documentName, originalName) {
     const elId = docNameToElId(documentName);
 
     const nameCell = document.getElementById(elId);
@@ -28,7 +36,8 @@ function applyUploadToRow(umbrellaId, documentName, originalName) {
 
     const viewCell = document.getElementById('view_' + elId);
     if (viewCell) {
-        viewCell.innerHTML = `<a href="view_files.php?umbrella_id=${encodeURIComponent(umbrellaId)}&document_name=${encodeURIComponent(documentName)}" target="_blank" rel="noopener"
+        const context = getUploadContext();
+        viewCell.innerHTML = `<a href="view_files.php?${context.parameter}=${encodeURIComponent(targetId)}&document_name=${encodeURIComponent(documentName)}" target="_blank" rel="noopener"
             class="text-blue-600 hover:underline font-medium">View</a>`;
     }
 }
@@ -42,16 +51,14 @@ function documentNameFromId(documentId) {
 
 // Called on page load and whenever the Umbrella ID dropdown changes.
 async function loadUploadedFiles() {
-    const umbrellaId = document.getElementById('umbrellaId').value;
-
+    const context = getUploadContext();
+    const targetId = context.id ? context.id.value : '';
     resetTable();
-
-    if (!umbrellaId) {
+    if (!targetId) {
         return;
     }
-
     try {
-        const res = await fetch(`get_uploads.php?umbrella_id=${encodeURIComponent(umbrellaId)}`);
+        const res = await fetch(`get_uploads.php?${context.parameter}=${encodeURIComponent(targetId)}&type=${encodeURIComponent(context.type)}`);
         const data = await res.json();
 
         if (!data.success) {
@@ -62,18 +69,17 @@ async function loadUploadedFiles() {
             });
             return;
         }
-
         data.uploads.forEach((row) => {
             const documentName = documentNameFromId(row.document_id);
             if (documentName) {
-                applyUploadToRow(umbrellaId, documentName, row.original_name);
+                applyUploadToRow(targetId, documentName, row.original_name);
             }
         });
     } catch (err) {
         console.error('Error loading uploaded files:', err);
         Swal.fire({
             title: 'Could Not Load Files',
-            text: 'Unable to load uploaded files for this Umbrella ID.',
+            text: `Unable to load uploaded files for this ${context.type === 'PID' ? 'Project' : 'Umbrella'} ID.`,
             icon: 'error'
         });
     }
@@ -81,10 +87,11 @@ async function loadUploadedFiles() {
 
 // Called when a user selects a file from an <input type="file">.
 async function handleUpload(inputEl) {
-    const umbrellaId = document.getElementById('umbrellaId').value;
+    const context = getUploadContext();
+    const targetId = context.id ? context.id.value : '';
 
-    if (!umbrellaId) {
-        alert('Please select an Umbrella ID before uploading.');
+    if (!targetId) {
+        alert(`Please select a ${context.type === 'PID' ? 'Project' : 'Umbrella'} ID before uploading.`);
         inputEl.value = '';
         return;
     }
@@ -101,7 +108,8 @@ async function handleUpload(inputEl) {
     if (nameCell) nameCell.textContent = 'Uploading...';
 
     const formData = new FormData();
-    formData.append('umbrella_id', umbrellaId);
+    formData.append(context.parameter, targetId);
+    formData.append('upload_type', context.type);
     formData.append('document_id', documentId);
     formData.append('document_name', documentName);
     formData.append('file', file);
@@ -119,7 +127,7 @@ async function handleUpload(inputEl) {
             return;
         }
 
-        applyUploadToRow(umbrellaId, documentName, data.original_name);
+        applyUploadToRow(targetId, documentName, data.original_name);
     } catch (err) {
         console.error('Upload error:', err);
         alert('Upload failed. Please try again.');

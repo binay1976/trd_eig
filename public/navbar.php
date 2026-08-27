@@ -8,6 +8,7 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
 $displayUserName = $_SESSION['username']
     ?? $_SESSION['user_name']
     ?? $_SESSION['mobile']
+    ?? $_SESSION['desig']
     ?? 'User Name';
 $displayRole = $_SESSION['role'] ?? 'User';
 
@@ -31,10 +32,11 @@ $currentPage = basename($_SERVER['PHP_SELF']);
                 <a href="index.php"
                    class="flex items-center gap-3">
                     <!-- Logo -->
-                    <div class="w-9 h-9 bg-blue-600 rounded-lg
-                                flex items-center justify-center
-                                font-bold text-lg">
-                    </div>
+                    <img
+                        src="images/logo.png"
+                        alt="W.Rly TRD EIG"
+                        class="w-9 h-9 object-contain rounded-lg"
+                    >
 
                     <!-- Brand Name -->
                     <span class="text-xl font-bold tracking-wide">
@@ -50,11 +52,11 @@ $currentPage = basename($_SERVER['PHP_SELF']);
                 <div class="flex items-center gap-3">
 
                     <!-- Avatar -->
-                    <div class="w-9 h-9 rounded-full
-                                bg-blue-600
-                                flex items-center justify-center
-                                font-semibold">
-                    </div>
+                    <img
+                        src="images/user.png"
+                        alt="W.Rly TRD EIG"
+                        class="w-9 h-9 object-contain rounded-lg"
+                    >
                     <div class="text-sm">
 
                         <div class="font-medium">

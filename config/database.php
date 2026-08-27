@@ -20,5 +20,5 @@ try {
         ]
     );
 } catch (PDOException $e) {
-    die("Database connection failed.");
+    throw $e;
 }

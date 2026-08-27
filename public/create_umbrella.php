@@ -1,21 +1,13 @@
 <?php
 // ── Handle POST (AJAX submission) ────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-
     session_start();
-
-    // Suppress PHP notices/warnings from polluting JSON output
     error_reporting(0);
     ob_start();
-
     require_once __DIR__ . '/../config/database.php';
-
     header('Content-Type: application/json');
 
-    // =========================================================
-    // 1. Collect inputs
-    // =========================================================
-
+    // 1. Collect inputs =========================================================
     $umbrella_project_name = trim($_POST['umbrella_project_name'] ?? '');
     $type_of_traction      = trim($_POST['type_of_traction']      ?? '');
     $section_type          = trim($_POST['section_type']          ?? '');
@@ -33,11 +25,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $estimated_cost        = trim($_POST['estimated_cost']        ?? '');
     $description           = trim($_POST['description']           ?? '');
 
-
-    // =========================================================
-    // 2. Validate required fields
-    // =========================================================
-
+    // 2. Validate required fields =========================================================
     $required = [
         'Umbrella Project Name' => $umbrella_project_name,
         'Type of Traction'      => $type_of_traction,
@@ -57,32 +45,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     ];
 
     foreach ($required as $label => $value) {
-
         if ($value === '') {
-
             ob_clean();
-
             echo json_encode([
                 'success' => false,
                 'message' => "{$label} is required."
             ]);
-
             exit;
         }
     }
 
-
-    // =========================================================
-    // 3. Create project data array
-    // =========================================================
-    //
-    // All project information will be stored inside ONE
-    // JSON column named "project_data".
-    //
-    // =========================================================
-
+    // 3. Create project data array (All project information will be stored inside ONE JSON column named "project_data".) =========================================================
     $project_data = [
-
         'umbrella_project_name' => $umbrella_project_name,
         'type_of_traction'      => $type_of_traction,
         'section_type'          => $section_type,
@@ -101,278 +75,154 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'description'           => $description
     ];
 
-
-    // =========================================================
-    // 4. Convert PHP array into JSON
-    // =========================================================
-
+    // 4. Convert PHP array into JSON =========================================================
     $project_json = json_encode(
         $project_data,
         JSON_UNESCAPED_UNICODE
     );
-
-
-    // Check whether JSON conversion was successful
-
+    // Check whether JSON conversion was successful =========================================================
     if ($project_json === false) {
-
         ob_clean();
-
         echo json_encode([
             'success' => false,
             'message' => 'Failed to create project JSON.'
         ]);
-
         exit;
     }
-
-
-    // =========================================================
-    // 5. Generate Umbrella ID
-    //
-    // Format:
-    //
-    // ZONE-UMB-YEAR-DIVISION-LOCATION-0001
-    //
-    // Example:
-    //
-    // WR-UMB-2026-BRC-AHMEDABAD-0001
-    //
-    // =========================================================
-
     $year = date('Y');
-
-
-    // Clean main section name
-
     $location = strtoupper(
         preg_replace(
             '/[^A-Za-z0-9\s]/',
             '',
             $main_section_name
         )
-    );
-
-
-    // Replace multiple spaces with -
-
+    ); // Replace multiple spaces with -
     $location = preg_replace(
         '/\s+/',
         '-',
         trim($location)
     );
-
-
     // Limit location to 10 characters
-
     $location = substr(
         $location,
         0,
         10
     );
-
-
     // Create ID prefix
+    $id_prefix = "UPID-{$zone}-{$year}-{$division}-{$location}";
 
-    $id_prefix = "{$zone}-UMB-{$year}-{$division}-{$location}";
-
-
-    // =========================================================
-    // 6. Find next sequence number
-    // =========================================================
-
+    // 6. Find next sequence number =========================================================
     $stmt = $pdo->prepare(
         "SELECT COUNT(*)
          FROM umbrella_projects
-         WHERE umbrella_id LIKE ?"
+         WHERE common_id LIKE ?"
     );
-
     $stmt->execute([
         $id_prefix . '-%'
     ]);
-
-
     $count = (int) $stmt->fetchColumn();
-
-
     // Create 4-digit sequence
-
     $sequence = str_pad(
         $count + 1,
         4,
         '0',
         STR_PAD_LEFT
     );
-
-
     // Create final umbrella ID
-
     $umbrella_id = "{$id_prefix}-{$sequence}";
 
-
-    // =========================================================
-    // 7. Ensure Umbrella ID is unique
-    // =========================================================
-
+    // 7. Ensure Umbrella ID is unique =========================================================
     while (true) {
-
         $check = $pdo->prepare(
             "SELECT id
              FROM umbrella_projects
-             WHERE umbrella_id = ?
+             WHERE common_id = ?
              LIMIT 1"
         );
-
         $check->execute([
             $umbrella_id
         ]);
-
-
         // If ID does not exist, break the loop
-
         if (!$check->fetch()) {
             break;
         }
-
-
         // If ID exists, increase sequence
-
         $count++;
-
-
         $sequence = str_pad(
             $count + 1,
             4,
             '0',
             STR_PAD_LEFT
         );
-
-
         $umbrella_id = "{$id_prefix}-{$sequence}";
     }
 
-
-    // =========================================================
-    // 8. Insert into database
-    // =========================================================
-    //
-    // IMPORTANT:
-    //
-    // We are NOT inserting the 16 fields separately.
-    //
-    // They are all inside:
-    //
-    // $project_json
-    //
-    // Database columns used:
-    //
-    // umbrella_id
-    // project_data
-    // created_by
-    //
-    // =========================================================
-
+    // 8. Insert into database =========================================================
     try {
 
-        $created_by = trim(($_SESSION['username'] ?? '') . '-' . ($_SESSION['desig'] ?? '')) ?: null;
-
+        $created_by = trim(($_SESSION['username'] ?? '') . '\\' . ($_SESSION['executing_agency'] ?? '') . '\\' . ($_SESSION['desig'] ?? '')) ?: null;
+        $type = "UPID";
+        $type_project = "Umbrella";
         $insert = $pdo->prepare("
             INSERT INTO umbrella_projects (
-                umbrella_id,
+                type,
+                type_project,
+                common_id,
                 project_data,
                 created_by,
                 updated_by
             )
-            VALUES (?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?)
         ");
-
-
         $insert->execute([
-
+            $type,
+            $type_project,
             $umbrella_id,
-
             $project_json,
-
             $created_by,
-
             $created_by
-
         ]);
 
-
-        // =====================================================
-        // 9. Return success response
-        // =====================================================
-
+        // 9. Return success response =====================================================
         ob_clean();
-
         echo json_encode([
-
             'success'     => true,
-
-            'message'     => 'Umbrella Project created successfully!',
-
+            'message'     => 'Data Added successfully!',
             'umbrella_id' => $umbrella_id
-
         ]);
-
-
     } catch (Exception $e) {
-
-        // =====================================================
-        // 10. Database error
-        // =====================================================
-
+        // 10. Database error =====================================================
         ob_clean();
-
         echo json_encode([
-
             'success' => false,
-
             'message' => 'Database error: ' . $e->getMessage()
-
         ]);
     }
-
-
     exit;
 }
 ?>
 
-
+<!-- UI Part of Form ============================================================================= -->
 <div class="max-w-5xl mx-auto">
-
     <!-- Page Title -->
-
     <div class="mb-6">
-
         <h2 class="text-2xl font-bold text-gray-800">
             Create Umbrella Project
         </h2>
-
         <p class="text-sm text-gray-500 mt-1">
             Enter the details to create a new umbrella project.
             (All Fields Required)
         </p>
-
     </div>
 
 
     <!-- Form -->
-
     <form id="umbrellaForm" class="space-y-6">
-
-
         <!-- Umbrella Project Name -->
-
         <div>
-
             <label class="block text-sm font-medium text-gray-700 mb-2">
-
                 Umbrella Project Name
-
                 <span class="text-red-500">*</span>
-
             </label>
 
             <input
@@ -380,29 +230,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 name="umbrella_project_name"
                 required
                 placeholder="Enter umbrella project name"
-                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-            >
-
+                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
         </div>
 
 
         <!-- Project Details -->
-
         <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mt-6">
-
-
             <!-- Type of Traction -->
-
             <div>
-
                 <label class="block text-sm font-medium text-gray-700 mb-2">
-
                     Type of Traction
-
                     <span class="text-red-500">*</span>
-
                 </label>
-
                 <select
                     name="type_of_traction"
                     required

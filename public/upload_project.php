@@ -1,17 +1,13 @@
 <?php
 require_once __DIR__ . '/../config/database.php';
 
-$umbrellaIds = $pdo->query(
-    "SELECT DISTINCT umbrella_id
+$projectIds = $pdo->query(
+    "SELECT common_id AS project_id
      FROM umbrella_projects
-     WHERE umbrella_id IS NOT NULL AND umbrella_id <> ''
-     ORDER BY umbrella_id"
+     WHERE common_id IS NOT NULL AND common_id <> ''
+     AND type = 'PID' ORDER BY updated_at DESC"
 )->fetchAll(PDO::FETCH_COLUMN);
 
-// Document types shown in the table. The 'slug' is what gets stored as
-// document_id in umbrella_uploads; the 'id' is used to build DOM element ids
-// (Project_Approval, Project_Drawing, ...) so it must match data-document
-// with spaces turned into underscores.
 $documents = [
     ['name' => 'Project Approval', 'slug' => 'project_approval'],
     ['name' => 'Project Drawing',  'slug' => 'project_drawing'],
@@ -19,27 +15,30 @@ $documents = [
 ];
 ?>
 
-<div class="max-w-6xl mx-auto">
+<div id="projectUploadPage"
+    data-upload-type="PID"
+    data-upload-directory="/uploads/project"
+    class="max-w-6xl mx-auto">
     <!-- Main Card -->
     <div class="bg-white rounded-xl shadow-md p-6">
         <!-- Header -->
         <div class="mb-6">
             <h1 class="text-2xl font-semibold text-gray-800">
-                Umbrella Documents Upload
+                Project Documents Upload
             </h1>
             <p class="text-sm text-gray-500 mt-1">
-                Select Umbrella ID and upload the required documents.
+                Select Project ID and upload the required documents.
             </p>
         </div>
 
-        <!-- Umbrella ID -->
+        <!-- Project ID -->
         <div class="mb-6 max-w-md">
-            <label class="block text-sm font-medium text-gray-700 mb-2">Select Umbrella ID<span class="text-red-500">*</span></label>
-            <select id="umbrellaId" onchange="loadUploadedFiles()" class="w-full px-4 py-3 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
-                <option value="">Select Umbrella ID</option>
-                <?php foreach ($umbrellaIds as $umbrellaId): ?>
-                    <option value="<?= htmlspecialchars($umbrellaId, ENT_QUOTES, 'UTF-8') ?>">
-                        <?= htmlspecialchars($umbrellaId, ENT_QUOTES, 'UTF-8') ?>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Select Project ID<span class="text-red-500">*</span></label>
+            <select id="projectId" onchange="loadUploadedFiles()" class="w-full px-4 py-3 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
+                <option value="">Select Project ID</option>
+                <?php foreach ($projectIds as $projectId): ?>
+                    <option value="<?= htmlspecialchars($projectId, ENT_QUOTES, 'UTF-8') ?>">
+                        <?= htmlspecialchars($projectId, ENT_QUOTES, 'UTF-8') ?>
                     </option>
                 <?php endforeach; ?>
             </select>
@@ -70,6 +69,8 @@ $documents = [
                                 <input type="file"
                                        accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
                                        class="hidden"
+                                       data-upload-type="PID"
+                                       data-upload-directory="/uploads/project"
                                        data-document="<?= htmlspecialchars($doc['name'], ENT_QUOTES, 'UTF-8') ?>"
                                        data-doc-id="<?= htmlspecialchars($doc['slug'], ENT_QUOTES, 'UTF-8') ?>"
                                        onchange="handleUpload(this)">

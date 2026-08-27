@@ -27,11 +27,15 @@ function loadPage(page) {
         break;
 
     case "umbrella_uploads":
-        pageFile = "umbrella_uploads.php";
+        pageFile = "./upload_umbrella.php";
         break;
 
     case "project":
         pageFile = "create_project.php";
+        break;
+
+    case "project_uploads":
+        pageFile = "./upload_project.php";
         break;
 
     case "equipment":
@@ -42,12 +46,16 @@ function loadPage(page) {
         pageFile = "home.php";
     }
 
-    fetch(pageFile)
+    const pageUrl = new URL(pageFile, window.location.href).href;
+
+    fetch(pageUrl, {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
         .then(response => {
 
             if (!response.ok) {
                 throw new Error(
-                    "HTTP Error: " + response.status
+                    "HTTP Error: " + response.status + " while loading " + pageUrl
                 );
             }
 

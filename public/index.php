@@ -22,7 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $login_error = 'Please enter both mobile number and password.';
     } else {
         $stmt = $pdo->prepare(
-            "SELECT id, user_name, mobile, password, role, div_name, Zone, desig, status
+            "SELECT id, user_name, mobile, password, role, div_name, Zone, executing_agency, desig, status
              FROM users
              WHERE mobile = ?
              LIMIT 1"
@@ -42,6 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['role']      = $user['role'];
                 $_SESSION['div_name']  = $user['div_name'];
                 $_SESSION['zone']      = $user['Zone'];
+                $_SESSION['executing_agency'] = $user['executing_agency'];
                 $_SESSION['desig']     = $user['desig'];
 
                 $login_success  = true;
