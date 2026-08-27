@@ -39,11 +39,15 @@ function loadPage(page) {
         break;
 
     case "equipment":
-        pageFile = "add_equipment.php";
+        pageFile = "create_equipment.php";
+        break;
+
+    case "equip_uploads":
+        pageFile = "./upload_equip.php";
         break;
 
     default:
-        pageFile = "home.php";
+        pageFile = "admin_dashboard.php";
     }
 
     const pageUrl = new URL(pageFile, window.location.href).href;

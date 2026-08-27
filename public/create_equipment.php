@@ -15,6 +15,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    // project_id is always "{umbrella_id}||PID\..." (see create_project.php) —
+    // the parent umbrella_id is everything before that separator.
+    $umbrella_id = strstr($project_id, '||PID\\', true);
+    if ($umbrella_id === false) {
+        $umbrella_id = null;
+    }
+
     $inserted = [];
     $skipped  = [];
     $errors   = [];
@@ -28,15 +35,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Generate A, B, C ... based on quantity
         for ($i = 0; $i < $quantity; $i++) {
             $seq            = chr(65 + $i);          // 65 = ASCII 'A'
-            $unique_form_id = $project_id . '-' . $form_no . '-' . $seq;
+            $unique_form_id = $project_id . '||EID\\' . $form_no . '\\' . $seq;
 
             try {
                 $stmt = $pdo->prepare("
                     INSERT IGNORE INTO project_forms
-                        (unique_form_id, project_id, form_no, form_name, nature, quantity, sequence_label)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                        (unique_form_id, project_id, umbrella_id, form_no, form_name, nature, quantity, sequence_label)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 ");
-                $stmt->execute([$unique_form_id, $project_id, $form_no, $form_name, $nature, $quantity, $seq]);
+                $stmt->execute([$unique_form_id, $project_id, $umbrella_id, $form_no, $form_name, $nature, $quantity, $seq]);
                 if ($stmt->rowCount() > 0) {
                     $inserted[] = $unique_form_id;   // actually inserted
                 } else {
@@ -75,16 +82,19 @@ if (isset($_GET['project_id'])) {
         exit;
     }
 
-    // Step 1: get type_project for the selected project
-    $stmt = $pdo->prepare("SELECT type_project FROM projects WHERE project_id = ? LIMIT 1");
+    // Step 1: get type_project for the selected project (from project_data JSON)
+    $stmt = $pdo->prepare("SELECT project_data FROM umbrella_projects WHERE type = 'PID' AND common_id = ? LIMIT 1");
     $stmt->execute([$project_id]);
-    $project = $stmt->fetch();
+    $projectRow = $stmt->fetch();
 
-    if (!$project) {
+    if (!$projectRow) {
         ob_clean();
         echo json_encode(['success' => false, 'message' => 'Project not found.']);
         exit;
     }
+
+    $projectData = json_decode($projectRow['project_data'] ?? '{}', true) ?: [];
+    $project     = ['type_project' => $projectData['type_project'] ?? ''];
 
     // Step 2: fetch active forms matching that type_project
     $stmt = $pdo->prepare("
@@ -128,7 +138,7 @@ if (isset($_GET['project_id'])) {
 require_once __DIR__ . '/../config/database.php';
 
 try {
-    $stmt     = $pdo->query("SELECT project_id FROM projects ORDER BY project_id ASC");
+    $stmt     = $pdo->query("SELECT common_id AS project_id FROM umbrella_projects WHERE type = 'PID' ORDER BY common_id ASC");
     $projects = $stmt->fetchAll();
 } catch (Exception $e) {
     $projects = [];
@@ -233,7 +243,7 @@ try {
                 </td>
             </tr>`;
 
-        fetch('add_equipment.php?project_id=' + encodeURIComponent(projectId))
+        fetch('create_equipment.php?project_id=' + encodeURIComponent(projectId))
             .then(res => res.json())
             .then(data => {
                 if (!data.success) {
@@ -361,7 +371,7 @@ try {
             });
         });
 
-        fetch('add_equipment.php', {
+        fetch('create_equipment.php', {
             method:  'POST',
             headers: { 'Content-Type': 'application/json' },
             body:    JSON.stringify({ project_id: projectId, forms: forms })
