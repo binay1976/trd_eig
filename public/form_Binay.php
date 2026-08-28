@@ -1,16 +1,9 @@
-<!--
-    TEST VARIANT of form.php — identical except it includes sidebar_test.php
-    instead of sidebar.php, so the project_forms-only dropdown rewrite can be
-    tested end to end (Ubuntu server) without touching the working
-    form.php/sidebar.php pair. See sidebar_test.php's header comment for why
-    this variant exists and what behaves differently.
--->
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EIG Module — Forms (TEST)</title>
+    <title>EIG Module — Forms</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         html, body { height: 100%; margin: 0; }
@@ -25,9 +18,9 @@
     <!-- Body: sidebar + content -->
     <div class="flex flex-1 overflow-hidden">
 
-        <!-- Sidebar (TEST: project_forms-only) -->
+        <!-- Sidebar -->
         <aside class="w-96 bg-white border-r border-gray-200 shadow-sm flex-shrink-0 p-5 overflow-y-auto">
-            <?php include __DIR__ . '/sidebar_test.php'; ?>
+            <?php include __DIR__ . '/sidebar.php'; ?>
         </aside>
 
         <!-- Form iframe -->
@@ -63,7 +56,7 @@
         }
         // Inject Prev/Next/Form-N controls, the Upload button, and the
         // Unique Form ID into the loaded form itself (defined in
-        // sidebar_test.php — same parent document)
+        // sidebar.php — same parent document)
         if (typeof injectFormNav === 'function') injectFormNav();
         if (typeof injectUploadButton === 'function') injectUploadButton();
         if (typeof injectUniqueFormId === 'function') injectUniqueFormId();

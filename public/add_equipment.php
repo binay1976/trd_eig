@@ -21,15 +21,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($umbrella_id === false) {
         $umbrella_id = null;
     }
+
     $inserted = [];
     $skipped  = [];
     $errors   = [];
 
     foreach ($forms as $form) {
-        $form_no   = trim($form['form_no']);
-        $form_name = trim($form['form_name']);
+        $form_no     = trim($form['form_no']);
+        $form_name   = trim($form['form_name']);
+        $quantity    = max(1, (int)$form['quantity']);
         $assigned_to = trim($form['assigned_to'] ?? '');
-        $quantity  = max(1, (int)$form['quantity']);
+
+        if ($assigned_to === '') {
+            $errors[] = $form_no . ': Assigned To is required.';
+            continue;
+        }
 
         // Generate A, B, C ... based on quantity
         for ($i = 0; $i < $quantity; $i++) {
@@ -38,24 +44,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             try {
                 $stmt = $pdo->prepare("
-                    INSERT INTO project_forms
+                    INSERT IGNORE INTO project_forms
                         (unique_form_id, project_id, umbrella_id, form_no, form_name, assigned_to, quantity, sequence_label)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    ON DUPLICATE KEY UPDATE
-                        assigned_to = VALUES(assigned_to),
-                        quantity = VALUES(quantity)
                 ");
                 $stmt->execute([$unique_form_id, $project_id, $umbrella_id, $form_no, $form_name, $assigned_to, $quantity, $seq]);
-                if ($stmt->rowCount() === 1) {
+                if ($stmt->rowCount() > 0) {
                     $inserted[] = $unique_form_id;   // actually inserted
                 } else {
-                    $skipped[] = $unique_form_id;   // existing row updated or unchanged
+                    $skipped[]  = $unique_form_id;   // already existed, skipped
                 }
             } catch (Exception $e) {
                 $errors[] = $unique_form_id . ': ' . $e->getMessage();
             }
         }
     }
+
     ob_clean();
     echo json_encode([
         'success'  => empty($errors),
@@ -72,8 +76,11 @@ if (isset($_GET['project_id'])) {
     ob_start();
 
     require_once __DIR__ . '/../config/database.php';
+
     header('Content-Type: application/json');
+
     $project_id = trim($_GET['project_id']);
+
     if ($project_id === '') {
         ob_clean();
         echo json_encode(['success' => false, 'message' => 'Project ID is required.']);
@@ -96,7 +103,7 @@ if (isset($_GET['project_id'])) {
 
     // Step 2: fetch active forms matching that type_project
     $stmt = $pdo->prepare("
-        SELECT id, form_no, form_name, status
+        SELECT id, form_no, form_name, nature, status
         FROM forms
         WHERE type_project = ? AND status = 'ACTIVE'
         ORDER BY form_no ASC
@@ -117,9 +124,9 @@ if (isset($_GET['project_id'])) {
     $saved = [];
     foreach ($savedRaw as $row) {
         $saved[$row['form_no']] = [
-            'quantity'    => (int)$row['quantity'],
-            'saved_count' => (int)$row['saved_count'],
-            'assigned_to' => $row['assigned_to'] ?? '',
+            'quantity'     => (int)$row['quantity'],
+            'saved_count'  => (int)$row['saved_count'],
+            'assigned_to'  => $row['assigned_to'],
         ];
     }
 
@@ -143,17 +150,13 @@ try {
     $projects = [];
 }
 
+// Users for the "Assigned To" dropdown — same list regardless of project, so
+// it's fetched once here rather than per-project like the forms table is.
 try {
-    $stmt = $pdo->query("SELECT user_name, desig, executing_agency FROM users WHERE role = 'Field user' ORDER BY user_name ASC");
-    $fieldUsers = array_map(function ($user) {
-        return implode('/', array_filter([
-            trim($user['user_name'] ?? ''),
-            trim($user['desig'] ?? ''),
-            trim($user['executing_agency'] ?? ''),
-        ], static fn ($value) => $value !== ''));
-    }, $stmt->fetchAll(PDO::FETCH_ASSOC));
+    $stmt  = $pdo->query("SELECT user_name, desig, executing_agency FROM users WHERE status = 1 ORDER BY user_name ASC");
+    $users = $stmt->fetchAll();
 } catch (Exception $e) {
-    $fieldUsers = [];
+    $users = [];
 }
 ?>
 
@@ -201,11 +204,12 @@ try {
             <thead>
                 <tr class="bg-gray-100">
                     <th class="border border-gray-300 px-4 py-3 text-center">S. No.</th>
-                    <th class="border border-gray-300 px-4 py-3 text-left">Form Name</th>
                     <th class="border border-gray-300 px-4 py-3 text-left">Form No.</th>
+                    <th class="border border-gray-300 px-4 py-3 text-left">Form Name</th>
+                    <th class="border border-gray-300 px-4 py-3 text-left">Nature</th>
                     <th class="border border-gray-300 px-4 py-3 text-center">Quantity</th>
-                    <th class="border border-gray-300 px-4 py-3 text-center">Add</th>
-                    <th class="border border-gray-300 px-4 py-3 text-center">Assign to</th>
+                    <th class="border border-gray-300 px-4 py-3 text-center">Select</th>
+                    <th class="border border-gray-300 px-4 py-3 text-center">Assigned To <span class="text-red-500">*</span></th>
                 </tr>
             </thead>
             <tbody id="formsTableBody">
@@ -231,10 +235,28 @@ try {
     </div>
 
     <script>
-    const fieldUsers = <?= json_encode($fieldUsers, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
+    // Users for the "Assigned To" dropdown, e.g. {value: "Chaman\\Jr. Engg\\RE", label: "Chaman \\ Jr. Engg \\ RE"}
+    const EIG_USERS = <?= json_encode(array_map(function ($u) {
+        $value = $u['user_name'] . '\\' . $u['desig'] . '\\' . $u['executing_agency'];
+        return ['value' => $value, 'label' => $value];
+    }, $users)) ?>;
 
-    function normalizeAssignment(value) {
-        return String(value || '').replace(/\\/g, '/').trim();
+    // No "Common" option — every form must be assigned to a specific user.
+    // The placeholder is intentionally NOT disabled: a disabled first option
+    // gets skipped by the browser's own default-selection behavior, which
+    // would silently auto-pick the next real option instead of leaving the
+    // field genuinely blank (e.g. for legacy rows saved before this dropdown
+    // existed, whose stored value matches none of the real options here).
+    function assignedToOptionsHtml(selectedValue) {
+        selectedValue = selectedValue || '';
+        const isKnownValue = EIG_USERS.some(function (u) { return u.value === selectedValue; });
+        const placeholderSelected = selectedValue === '' || !isKnownValue;
+        let html = '<option value=""' + (placeholderSelected ? ' selected' : '') + '>-- Select User --</option>';
+        EIG_USERS.forEach(function (u) {
+            const isSelected = u.value === selectedValue;
+            html += '<option value="' + escHtml(u.value) + '"' + (isSelected ? ' selected' : '') + '>' + escHtml(u.label) + '</option>';
+        });
+        return html;
     }
 
     // ── Project dropdown → load forms table ───────────────────────────────────
@@ -261,7 +283,7 @@ try {
                 </td>
             </tr>`;
 
-        fetch('create_equipment.php?project_id=' + encodeURIComponent(projectId))
+        fetch('add_equipment.php?project_id=' + encodeURIComponent(projectId))
             .then(res => res.json())
             .then(data => {
                 if (!data.success) {
@@ -296,7 +318,6 @@ try {
                     const isSaved   = !!s;
                     const savedQty  = isSaved ? s.quantity    : 0;
                     const savedCnt  = isSaved ? s.saved_count : 0;
-                    const assignedTo = isSaved ? normalizeAssignment(s.assigned_to) : '';
 
                     // Build sequence labels e.g. A, B, C
                     const seqLabels = [];
@@ -313,10 +334,11 @@ try {
                     return `
                     <tr class="${rowClass}">
                         <td class="border border-gray-300 px-4 py-3 text-center text-sm">${index + 1}</td>
+                        <td class="border border-gray-300 px-4 py-3 text-sm text-gray-600">${escHtml(form.form_no)}</td>
                         <td class="border border-gray-300 px-4 py-3 text-sm font-medium">
                             ${escHtml(form.form_name)}${savedBadge}
                         </td>
-                        <td class="border border-gray-300 px-4 py-3 text-sm text-gray-600">${escHtml(form.form_no)}</td>
+                        <td class="border border-gray-300 px-4 py-3 text-sm text-gray-500">${escHtml(form.nature || '—')}</td>
                         <td class="border border-gray-300 px-4 py-3 text-center">
                             <input type="number" min="0" name="quantity[${form.id}]"
                                 value="${isSaved ? savedQty : ''}"
@@ -329,10 +351,9 @@ try {
                                 class="w-4 h-4 accent-blue-600 cursor-pointer">
                         </td>
                         <td class="border border-gray-300 px-4 py-3 text-center">
-                            <select name="assigned_to[${form.id}]"
-                                class="w-full min-w-36 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-                                <option value="">Select user</option>
-                                ${fieldUsers.map(user => `<option value="${escHtml(user)}" ${normalizeAssignment(user) === assignedTo ? 'selected' : ''}>${escHtml(user)}</option>`).join('')}
+                            <select name="assigned_to[${form.id}]" required
+                                class="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                                ${assignedToOptionsHtml(isSaved ? s.assigned_to : '')}
                             </select>
                         </td>
                     </tr>`;
@@ -382,21 +403,35 @@ try {
         }
 
         const forms = [];
+        const missingAssignment = [];
         checked.forEach(function (checkbox) {
-            const row      = checkbox.closest('tr');
-            const cells    = row.querySelectorAll('td');
-            const qtyInput = row.querySelector('input[type="number"]');
-            const qty      = parseInt(qtyInput ? qtyInput.value : 1) || 1;
+            const row          = checkbox.closest('tr');
+            const cells        = row.querySelectorAll('td');
+            const qtyInput     = row.querySelector('input[type="number"]');
+            const qty          = parseInt(qtyInput ? qtyInput.value : 1) || 1;
+            const assignSelect = row.querySelector('select[name^="assigned_to"]');
+            const assignedTo   = assignSelect ? assignSelect.value : '';
+
+            if (!assignedTo) {
+                missingAssignment.push(cells[1].textContent.trim());
+                return;
+            }
 
             forms.push({
-                form_no:   cells[2].textContent.trim(),
-                form_name: cells[1].textContent.trim(),
-                assigned_to: row.querySelector('select[name^="assigned_to"]')?.value || '',
-                quantity:  qty
+                form_no:     cells[1].textContent.trim(),
+                form_name:   cells[2].textContent.trim(),
+                nature:      cells[3].textContent.trim(),
+                quantity:    qty,
+                assigned_to: assignedTo
             });
         });
 
-        fetch('create_equipment.php', {
+        if (missingAssignment.length > 0) {
+            alert('Please select "Assigned To" for: ' + missingAssignment.join(', '));
+            return;
+        }
+
+        fetch('add_equipment.php', {
             method:  'POST',
             headers: { 'Content-Type': 'application/json' },
             body:    JSON.stringify({ project_id: projectId, forms: forms })

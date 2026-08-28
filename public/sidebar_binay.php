@@ -1,75 +1,260 @@
 <?php
-// TEST VARIANT of sidebar.php — every dropdown query here reads only from
-// project_forms, with none of the umbrella_projects LIKE-prefix lookups the
-// real sidebar.php uses. This exists to isolate/fix the "Project dropdown
-// not coming up on Ubuntu" bug: the working Windows/XAMPP query matches
-// projects with `common_id LIKE '{umbrella_id}||PID\%'` (a backslash-wildcard
-// LIKE pattern against umbrella_projects), and LIKE-with-backslash behavior
-// can differ across MySQL/MariaDB versions and, more likely, across PDO's
-// emulated-vs-native prepared-statement mode — a value that gets
-// double-escaped (or not escaped at all) between environments silently
-// breaks the match and returns zero rows, with no error. This version
-// sidesteps that entirely: project_forms already has umbrella_id/project_id
-// as plain denormalized columns, so every lookup here is a single exact `=`
-// comparison — no LIKE, no wildcard, no backslash-escaping ambiguity.
-//
-// Trade-off versus the real sidebar.php: an umbrella or project that has NO
-// equipment/forms added yet (via Add Equipment) will not appear in these
-// dropdowns, since project_forms has no row for it at all. The real
-// sidebar.php reads umbrella_projects instead specifically so brand-new,
-// still-empty umbrellas/projects are still selectable. Keep that in mind
-// when comparing behavior side-by-side.
-//
-// NOT wired into the live app — swap form.php to include this instead of
-// sidebar.php (see form_test.php) only for testing on the Ubuntu server.
+session_start();
 
-// ── AJAX: projects by umbrella_id (exact match, no LIKE) ─────────────────
+// // ── AJAX: projects by umbrella_id ─────────────────────────────────────────────
+// if (isset($_GET['umbrella_id'])) {
+//     require_once __DIR__ . '/../config/database.php';
+//     header('Content-Type: application/json');
+//     $umbrella_id = trim($_GET['umbrella_id']);
+
+//     $stmt = $pdo->prepare("
+//         SELECT common_id AS project_id
+//         FROM umbrella_projects
+//         WHERE type = 'PID'
+//           AND LEFT(common_id, CHAR_LENGTH(?)) = ?
+//         ORDER BY common_id ASC
+//     ");
+//     $projectPrefix = $umbrella_id . '||PID\\';
+//     $stmt->execute([$projectPrefix, $projectPrefix]);
+//     echo json_encode(['projects' => $stmt->fetchAll()]);
+//     exit;
+// }
+
+// // ── AJAX: equipment by project_id ─────────────────────────────────────────────
+// if (isset($_GET['project_id'])) {
+//     require_once __DIR__ . '/../config/database.php';
+//     header('Content-Type: application/json');
+//     $project_id = trim($_GET['project_id']);
+
+//     $identityParts = [
+//         $_SESSION['username'] ?? '',
+//         $_SESSION['desig'] ?? '',
+//         $_SESSION['executing_agency'] ?? '',
+//     ];
+//     if (!empty($_SESSION['user_id'])) {
+//         $userStmt = $pdo->prepare('SELECT user_name, desig, executing_agency FROM users WHERE id = ? LIMIT 1');
+//         $userStmt->execute([$_SESSION['user_id']]);
+//         $userRow = $userStmt->fetch();
+//         if ($userRow) {
+//             $identityParts = [$userRow['user_name'], $userRow['desig'], $userRow['executing_agency']];
+//         }
+//     }
+//     $identity = implode('/', array_map('trim', $identityParts));
+//     $legacyIdentity = str_replace('/', '\\', $identity);
+
+//     // type_project is now a real column
+//     $stmt = $pdo->prepare("SELECT type_project FROM umbrella_projects WHERE type = 'PID' AND common_id = ? LIMIT 1");
+//     $stmt->execute([$project_id]);
+//     $projectRow = $stmt->fetch();
+//     $project = ['type_project' => $projectRow['type_project'] ?? ''];
+
+//     // Get saved forms grouped by form_no with filled counts
+//     $stmt = $pdo->prepare("
+//         SELECT form_name, form_no, unique_form_id, sequence_label, is_filled
+//         FROM project_forms
+//         WHERE project_id = ?
+//                     AND assigned_to IN (?, ?)
+//         ORDER BY form_no ASC, sequence_label ASC
+//     ");
+//         $stmt->execute([$project_id, $identity, $legacyIdentity]);
+//     $rows = $stmt->fetchAll();
+
+//     // Group rows by form_no
+//     $grouped = [];
+//     foreach ($rows as $row) {
+//         $key = $row['form_no'];
+//         if (!isset($grouped[$key])) {
+//             $grouped[$key] = [
+//                 'form_name' => $row['form_name'],
+//                 'form_no'   => $row['form_no'],
+//                 'total'     => 0,
+//                 'filled'    => 0,
+//                 'instances' => [],
+//             ];
+//         }
+//         $grouped[$key]['total']++;
+//         if ((int)$row['is_filled'] === 1) $grouped[$key]['filled']++;
+//         $grouped[$key]['instances'][] = [
+//             'uid'       => $row['unique_form_id'],
+//             'label'     => $row['sequence_label'],
+//             'is_filled' => (int)$row['is_filled'],
+//         ];
+//     }
+//     echo json_encode([
+//         'type_project' => $project ? $project['type_project'] : '',
+//         'equipment'    => array_values($grouped),
+//     ]);
+//     exit;
+// }
+
+// ── AJAX: PIDs by umbrella_id ────────────────────────────────────────────────
 if (isset($_GET['umbrella_id'])) {
     require_once __DIR__ . '/../config/database.php';
     header('Content-Type: application/json');
     $umbrella_id = trim($_GET['umbrella_id']);
+    // ---------------------------------------------------------
+    // Build current user's identity
+    // Same identity format used in project_forms.assigned_to
+    // ---------------------------------------------------------
+    $identityParts = [
+        $_SESSION['username'] ?? '',
+        $_SESSION['desig'] ?? '',
+        $_SESSION['executing_agency'] ?? '',
+    ];
+
+    if (!empty($_SESSION['user_id'])) {
+        $userStmt = $pdo->prepare("
+            SELECT user_name, desig, executing_agency
+            FROM users
+            WHERE id = ?
+            LIMIT 1
+        ");
+        $userStmt->execute([$_SESSION['user_id']]);
+        $userRow = $userStmt->fetch(PDO::FETCH_ASSOC);
+        if ($userRow) {
+            $identityParts = [
+                $userRow['user_name'],
+                $userRow['desig'],
+                $userRow['executing_agency']
+            ];
+        }
+    }
+
+    $identity = implode(
+        '/',
+        array_map('trim', $identityParts)
+    );
+    $legacyIdentity = str_replace('/', '\\', $identity);
+
+
+    // ---------------------------------------------------------
+    // Get PIDs ONLY from project_forms
+    //
+    // Conditions:
+    // 1. Selected umbrella_id
+    // 2. assigned_to matches current session
+    // 3. Return unique project_id
+    // ---------------------------------------------------------
 
     $stmt = $pdo->prepare("
-        SELECT DISTINCT project_id
+        SELECT DISTINCT
+            project_id
         FROM project_forms
         WHERE umbrella_id = ?
+          AND assigned_to IN (?, ?)
+          AND project_id <> ''
         ORDER BY project_id ASC
     ");
-    $stmt->execute([$umbrella_id]);
-    echo json_encode(['projects' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
+
+    $stmt->execute([
+        $umbrella_id,
+        $identity,
+        $legacyIdentity
+    ]);
+
+    $projects = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+
+    echo json_encode([
+        'projects' => $projects
+    ]);
+
     exit;
 }
 
-// ── AJAX: equipment by project_id ─────────────────────────────────────────
+
+// ── AJAX: forms by project_id ─────────────────────────────────────────────────
 if (isset($_GET['project_id'])) {
-    session_start();
+
     require_once __DIR__ . '/../config/database.php';
+
     header('Content-Type: application/json');
+
     $project_id = trim($_GET['project_id']);
 
-    // Only forms assigned to this exact logged-in user (matched as
-    // "username\desig\executing_agency", the same format add_equipment.php's
-    // dropdown writes) are shown — everything else stays hidden, including
-    // forms assigned to anyone else.
-    $identity = trim(($_SESSION['username'] ?? '') . '\\' . ($_SESSION['desig'] ?? '') . '\\' . ($_SESSION['executing_agency'] ?? ''));
 
-    // Get saved forms grouped by form_no with filled counts — unchanged from
-    // sidebar.php, this part was already project_forms-only.
+    // ---------------------------------------------------------
+    // Build current user's identity
+    // ---------------------------------------------------------
+    $identityParts = [
+        $_SESSION['username'] ?? '',
+        $_SESSION['desig'] ?? '',
+        $_SESSION['executing_agency'] ?? '',
+    ];
+
+    if (!empty($_SESSION['user_id'])) {
+
+        $userStmt = $pdo->prepare("
+            SELECT user_name, desig, executing_agency
+            FROM users
+            WHERE id = ?
+            LIMIT 1
+        ");
+
+        $userStmt->execute([
+            $_SESSION['user_id']
+        ]);
+
+        $userRow = $userStmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($userRow) {
+
+            $identityParts = [
+                $userRow['user_name'],
+                $userRow['desig'],
+                $userRow['executing_agency']
+            ];
+        }
+    }
+
+
+    $identity = implode(
+        '/',
+        array_map('trim', $identityParts)
+    );
+
+    $legacyIdentity = str_replace('/', '\\', $identity);
+
+
+    // ---------------------------------------------------------
+    // Get forms ONLY from project_forms
+    // ---------------------------------------------------------
     $stmt = $pdo->prepare("
-        SELECT form_name, form_no, unique_form_id, sequence_label, is_filled
+        SELECT
+            form_name,
+            form_no,
+            unique_form_id,
+            sequence_label,
+            is_filled,
+            umbrella_id
         FROM project_forms
         WHERE project_id = ?
-          AND assigned_to = ?
-        ORDER BY form_no ASC, sequence_label ASC
+          AND assigned_to IN (?, ?)
+        ORDER BY
+            form_no ASC,
+            sequence_label ASC
     ");
-    $stmt->execute([$project_id, $identity]);
-    $rows = $stmt->fetchAll();
 
-    // Group rows by form_no
+    $stmt->execute([
+        $project_id,
+        $identity,
+        $legacyIdentity
+    ]);
+
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+
+    // ---------------------------------------------------------
+    // Group forms by form_no
+    // ---------------------------------------------------------
     $grouped = [];
+
     foreach ($rows as $row) {
+
         $key = $row['form_no'];
+
         if (!isset($grouped[$key])) {
+
             $grouped[$key] = [
                 'form_name' => $row['form_name'],
                 'form_no'   => $row['form_no'],
@@ -78,8 +263,13 @@ if (isset($_GET['project_id'])) {
                 'instances' => [],
             ];
         }
+
         $grouped[$key]['total']++;
-        if ((int)$row['is_filled'] === 1) $grouped[$key]['filled']++;
+
+        if ((int)$row['is_filled'] === 1) {
+            $grouped[$key]['filled']++;
+        }
+
         $grouped[$key]['instances'][] = [
             'uid'       => $row['unique_form_id'],
             'label'     => $row['sequence_label'],
@@ -87,24 +277,23 @@ if (isset($_GET['project_id'])) {
         ];
     }
 
+
+    // ---------------------------------------------------------
+    // Return JSON
+    // ---------------------------------------------------------
     echo json_encode([
-        'type_project' => '', // no umbrella_projects lookup here — unused by formUrl() anyway
-        'equipment'    => array_values($grouped),
+        'equipment' => array_values($grouped)
     ]);
+
     exit;
 }
 
-// ── Normal page load: fetch umbrellas only, from project_forms ────────────
+// ── Normal page load: fetch umbrellas only ────────────────────────────────────
 require_once __DIR__ . '/../config/database.php';
 $umbrellas = [];
 try {
-    $stmt = $pdo->query("
-        SELECT DISTINCT umbrella_id
-        FROM project_forms
-        WHERE umbrella_id IS NOT NULL AND umbrella_id <> ''
-        ORDER BY umbrella_id ASC
-    ");
-    $umbrellas = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $stmt = $pdo->query("SELECT common_id AS umbrella_id FROM umbrella_projects WHERE type = 'UPID' ORDER BY common_id ASC");
+    $umbrellas = $stmt->fetchAll();
 } catch (Exception $e) {
     $umbrellas = [];
 }
@@ -114,8 +303,8 @@ try {
 
     <!-- Heading -->
     <div class="mb-6">
-        <h2 class="text-lg font-bold text-gray-800">Project Filter <span class="text-xs font-normal text-amber-600">(TEST — project_forms only)</span></h2>
-        <p class="text-xs text-gray-400 mt-0.5">Select umbrella and project to load equipment.</p>
+        <h2 class="text-lg font-bold text-gray-800">Field User Console</h2>
+        <p class="text-xs text-gray-400 mt-0.5">Select umbrella and project to load Forms</p>
     </div>
 
     <!-- Umbrella ID Dropdown -->
@@ -148,7 +337,7 @@ try {
     <!-- Equipment List -->
     <div class="mb-6">
         <label class="block text-sm font-medium text-gray-700 mb-2">
-            Equipment &amp; Forms
+            Equipment Data Entry Forms
         </label>
         <div class="border border-gray-200 rounded-lg overflow-hidden">
             <ul id="equipment_list" class="divide-y divide-gray-100">
@@ -174,7 +363,7 @@ try {
 </div>
 
 <script>
-// ── Umbrella → Project ──────────────────────────────────────────────────
+// ── Umbrella → Project ────────────────────────────────────────────────────────
 document.getElementById('umbrella_id').addEventListener('change', function () {
     const umbrellaId      = this.value;
     const projectDropdown = document.getElementById('project_id');
@@ -185,7 +374,7 @@ document.getElementById('umbrella_id').addEventListener('change', function () {
 
     if (!umbrellaId) return;
 
-    fetch('/trd_eig/public/sidebar_test.php?umbrella_id=' + encodeURIComponent(umbrellaId))
+    fetch('/trd_eig/public/sidebar.php?umbrella_id=' + encodeURIComponent(umbrellaId))
         .then(res => res.json())
         .then(data => {
             data.projects.forEach(function (p) {
@@ -197,15 +386,17 @@ document.getElementById('umbrella_id').addEventListener('change', function () {
         });
 });
 
-// ── Build form page URL: filename is exactly form_name + .php ────────────
+// ── Build form page URL: filename is exactly form_name + .php ────────────────
 function formUrl(type, formName) {
     return '/trd_eig/public/forms/' + formName + '.php';
 }
 
-// ── Current form-instance navigation state — one equipment item's A/B/C... ─
+// ── Current form-instance navigation state — one equipment item's A/B/C... ───
 window.formNav = { base: '', instances: [], currentIdx: 0, liIndex: -1 };
 
-// ── Warn before leaving a form that has entered-but-unsaved values ───────
+// ── Warn before leaving a form that has entered-but-unsaved values ───────────
+// (Nothing persists typed field values anywhere yet — this is a safety net,
+// not a fix. See project notes on adding real autosave/backend storage.)
 function hasUnsavedChanges() {
     const frame = document.getElementById('formFrame');
     if (!frame) return false;
@@ -231,7 +422,7 @@ function confirmLeaveIfDirty() {
     return confirm('This form has unsaved data. Leaving now will lose it. Continue?');
 }
 
-// ── Load a specific instance (A, B, C...) of the currently selected equipment
+// ── Load a specific instance (A, B, C...) of the currently selected equipment ─
 function loadNavInstance(idx) {
     const nav = window.formNav;
     if (!nav.instances.length || idx < 0 || idx >= nav.instances.length) return;
@@ -253,7 +444,7 @@ function loadNavInstance(idx) {
 
 // ── Inject Prev / "Form N of Total" / Next next to the form's own Reset
 //    button. Runs after every iframe load (form.php calls this). Only shown
-//    when the equipment has more than one instance to fill. ───────────────
+//    when the equipment has more than one instance to fill. ─────────────────
 function injectFormNav() {
     const nav = window.formNav;
     if (!nav.instances || nav.instances.length <= 1) return;
@@ -265,6 +456,8 @@ function injectFormNav() {
     try { doc = frame.contentDocument; } catch (e) { return; }
     if (!doc) return;
 
+    // Forms use inconsistent markup — find the Reset button by type first,
+    // then fall back to matching its visible text.
     let resetBtn = doc.querySelector('button[type="reset"]');
     if (!resetBtn) {
         resetBtn = Array.from(doc.querySelectorAll('button')).find(function (b) {
@@ -304,7 +497,7 @@ function injectFormNav() {
 }
 
 // ── Inject an Upload button next to Reset — shown on every form, unlike
-//    Prev/Next which only appear for multi-instance equipment. ────────────
+//    Prev/Next which only appear for multi-instance equipment. ──────────────
 function injectUploadButton() {
     const frame = document.getElementById('formFrame');
     if (!frame) return;
@@ -340,7 +533,7 @@ function injectUploadButton() {
     row.appendChild(uploadBtn);
 }
 
-// ── Inject the Unique Form ID just below "FORM NO" at the top-left badge ──
+// ── Inject the Unique Form ID just below "FORM NO" at the top-left badge ─────
 function injectUniqueFormId() {
     const frame = document.getElementById('formFrame');
     if (!frame) return;
@@ -353,12 +546,13 @@ function injectUniqueFormId() {
     try { uid = new URLSearchParams(doc.location.search).get('unique_form_id') || ''; } catch (e) { return; }
     if (!uid) return;
 
+    // Every form's badge has a <span> whose text is exactly "FORM NO"
     const formNoSpan = Array.from(doc.querySelectorAll('span')).find(function (s) {
         return s.textContent.trim() === 'FORM NO';
     });
     if (!formNoSpan) return;
 
-    const formNoRow      = formNoSpan.parentElement;
+    const formNoRow      = formNoSpan.parentElement;      // <div>FORM NO  <strong>TSS-14</strong></div>
     const badgeContainer = formNoRow ? formNoRow.parentElement : null;
     if (!formNoRow || !badgeContainer || badgeContainer.querySelector('.eig-unique-id-injected')) return;
 
@@ -375,13 +569,15 @@ function injectUniqueFormId() {
     value.textContent   = uid;
 
     idRow.appendChild(label);
-    idRow.appendChild(doc.createTextNode(' '));
+    idRow.appendChild(doc.createTextNode(' '));
     idRow.appendChild(value);
 
     formNoRow.insertAdjacentElement('afterend', idRow);
 }
 
-// ── Intercept each form's own submit and route it to save_form.php ───────
+// ── Intercept each form's own submit (which points at a nonexistent
+//    save_xxx.php) and route it to the shared save_form.php endpoint instead.
+//    Runs after every iframe load, same technique as the other injections. ───
 function interceptFormSave() {
     const frame = document.getElementById('formFrame');
     if (!frame) return;
@@ -423,7 +619,9 @@ function interceptFormSave() {
     });
 }
 
-// ── Pre-fill a form's fields from previously saved data (if any) ─────────
+// ── Pre-fill a form's fields from previously saved data (if any), so
+//    revisiting a filled form shows what was entered instead of a blank
+//    page. Runs after every iframe load, same technique as the others. ───────
 function hydrateFormFromSaved() {
     const frame = document.getElementById('formFrame');
     if (!frame) return;
@@ -468,7 +666,7 @@ function hydrateFormFromSaved() {
         .catch(() => {});
 }
 
-// ── Render equipment list ─────────────────────────────────────────────────
+// ── Render equipment list ─────────────────────────────────────────────────────
 function renderEquipment(equipmentList, data) {
     if (data.equipment.length === 0) {
         equipmentList.innerHTML = '<li class="px-3 py-3 text-sm text-gray-400 text-center">No equipment added for this project yet.</li>';
@@ -483,14 +681,16 @@ function renderEquipment(equipmentList, data) {
         const filled = e.filled;
         const base   = formUrl(type, e.form_name);
 
+        // Badge colour
         let badgeColor;
-        if (filled === 0)           badgeColor = 'color:#dc2626;background:#fee2e2';
-        else if (filled < total)    badgeColor = 'color:#ea580c;background:#ffedd5';
-        else                        badgeColor = 'color:#16a34a;background:#dcfce7';
+        if (filled === 0)           badgeColor = 'color:#dc2626;background:#fee2e2';   // red
+        else if (filled < total)    badgeColor = 'color:#ea580c;background:#ffedd5';   // orange
+        else                        badgeColor = 'color:#16a34a;background:#dcfce7';   // green
 
         const li = document.createElement('li');
         li.className   = 'border-b border-gray-100 px-3 py-2';
 
+        // ── Row 1: name + badge ───────────────────────────────────────────────
         const row1 = document.createElement('div');
         row1.className = 'flex items-start gap-2 cursor-pointer group mb-1';
 
@@ -514,6 +714,7 @@ function renderEquipment(equipmentList, data) {
         row1.appendChild(badge);
 
         row1.addEventListener('click', function () {
+            // loadNavInstance() itself checks for unsaved changes before navigating
             window.formNav = {
                 base:       base,
                 instances:  e.instances,
@@ -537,7 +738,7 @@ function highlightItem(idx) {
     if (items[idx]) items[idx].style.background = '#eff6ff';
 }
 
-// ── Project → Equipment ────────────────────────────────────────────────────
+// ── Project → Equipment ───────────────────────────────────────────────────────
 document.getElementById('project_id').addEventListener('change', function () {
     const projectId     = this.value;
     const equipmentList = document.getElementById('equipment_list');
@@ -549,20 +750,21 @@ document.getElementById('project_id').addEventListener('change', function () {
         return;
     }
 
-    fetch('/trd_eig/public/sidebar_test.php?project_id=' + encodeURIComponent(projectId))
+    fetch('/trd_eig/public/sidebar.php?project_id=' + encodeURIComponent(projectId))
         .then(res => res.json())
         .then(data => renderEquipment(equipmentList, data));
 });
 
-// ── Listen for form-filled message from iframe ─────────────────────────────
+// ── Listen for form-filled message from iframe ────────────────────────────────
 window.addEventListener('message', function (ev) {
     if (ev.data && ev.data.type === 'formFilled') {
+        // Re-trigger project change to refresh badges
         const sel = document.getElementById('project_id');
         if (sel && sel.value) sel.dispatchEvent(new Event('change'));
     }
 });
 
-// ── Reset ────────────────────────────────────────────────────────────────
+// ── Reset ─────────────────────────────────────────────────────────────────────
 document.getElementById('resetBtn').addEventListener('click', function () {
     document.getElementById('umbrella_id').value = '';
     document.getElementById('project_id').innerHTML  = '<option value="">-- Select Project --</option>';

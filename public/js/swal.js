@@ -15,7 +15,7 @@ function showWelcome(username, redirectUrl) {
         timer: 2200,
         timerProgressBar: true,
 
-        background: 'rgba(10, 10, 10, 0.92)',
+        background: 'rgba(167, 123, 4, 0.92)',
         color: '#ffffff',
 
         showClass: {

@@ -41,6 +41,11 @@
                 class="flex-1 px-5 py-3 bg-blue-950 text-white rounded-lg hover:bg-blue-600">
                 Add Equipment & Machine
             </button>
+            <button
+                onclick="loadPage('view')"
+                class="flex-1 px-5 py-3 bg-blue-950 text-white rounded-lg hover:bg-blue-600">
+                View & print
+            </button>
 
         </div>
 

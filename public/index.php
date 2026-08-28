@@ -1,10 +1,24 @@
 <?php
 session_start();
 
-// If already logged in, redirect to home
-if (!empty($_SESSION['user_id'])) {
-    header('Location: /admin_home.php');
+function redirectByRole(string $role): void
+{
+    $role = strtoupper(trim($role));
+
+    $page = match ($role) {
+        'SUPERADMIN' => 'superadmin.php',
+        'ADMIN' => 'admin_home.php',
+        'FIELD USER' => 'form.php',
+        default => 'index.php',
+    };
+
+    header('Location: ' . $page);
     exit;
+}
+
+// If already logged in, redirect according to the saved role.
+if (!empty($_SESSION['user_id'])) {
+    redirectByRole($_SESSION['role'] ?? '');
 }
 
 require_once __DIR__ . '/../config/database.php';
@@ -45,8 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['executing_agency'] = $user['executing_agency'];
                 $_SESSION['desig']     = $user['desig'];
 
-                $login_success  = true;
-                $logged_in_user = $user['user_name'];
+                redirectByRole($user['role']);
             }
 
         } else {

@@ -1,7 +1,5 @@
-function testJS() {
-    alert("JavaScript is working!");
-}
-
+// SPA page switcher — swaps #pageContent's innerHTML via fetch() instead of
+// a full page reload. Called by every nav button's onclick="loadPage('...')".
 function loadPage(page) {
 
     const content = document.getElementById("pageContent");
@@ -27,7 +25,7 @@ function loadPage(page) {
         break;
 
     case "umbrella_uploads":
-        pageFile = "./upload_umbrella.php";
+        pageFile = "uploads.php?scope=umbrella";
         break;
 
     case "project":
@@ -35,35 +33,38 @@ function loadPage(page) {
         break;
 
     case "project_uploads":
-        pageFile = "./upload_project.php";
+        pageFile = "uploads.php?scope=project";
         break;
 
     case "equipment":
-        pageFile = "create_equipment.php";
+        pageFile = "add_equipment.php";
         break;
 
-    case "equip_uploads":
-        pageFile = "./upload_equip.php";
+    case "create_user":
+        pageFile = "create_user.php";
         break;
-    
-    case "view":
+
+    case "tree":
         pageFile = "tree_view.php";
         break;
 
+    case "dashboard2":
+        pageFile = "admin_dashboard2.php";
+        break;
+
     default:
-        pageFile = "admin_dashboard.php";
+        pageFile = "home.php";
     }
 
-    const pageUrl = new URL(pageFile, window.location.href).href;
-
-    fetch(pageUrl, {
-        headers: { 'X-Requested-With': 'XMLHttpRequest' }
-    })
+    // Marks this as an SPA fragment request — lets a page (see
+    // admin_dashboard2.php) tell the difference between being fetched in
+    // here vs. being opened directly by URL, and render itself accordingly.
+    fetch(pageFile, { headers: { 'X-Requested-With': 'Fetch' } })
         .then(response => {
 
             if (!response.ok) {
                 throw new Error(
-                    "HTTP Error: " + response.status + " while loading " + pageUrl
+                    "HTTP Error: " + response.status
                 );
             }
 
