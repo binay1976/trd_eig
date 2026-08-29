@@ -1,72 +1,99 @@
 <?php
-// TEST VARIANT of sidebar.php — every dropdown query here reads only from
-// project_forms, with none of the umbrella_projects LIKE-prefix lookups the
-// real sidebar.php uses. This exists to isolate/fix the "Project dropdown
-// not coming up on Ubuntu" bug: the working Windows/XAMPP query matches
-// projects with `common_id LIKE '{umbrella_id}||PID\%'` (a backslash-wildcard
-// LIKE pattern against umbrella_projects), and LIKE-with-backslash behavior
-// can differ across MySQL/MariaDB versions and, more likely, across PDO's
-// emulated-vs-native prepared-statement mode — a value that gets
-// double-escaped (or not escaped at all) between environments silently
-// breaks the match and returns zero rows, with no error. This version
-// sidesteps that entirely: project_forms already has umbrella_id/project_id
-// as plain denormalized columns, so every lookup here is a single exact `=`
-// comparison — no LIKE, no wildcard, no backslash-escaping ambiguity.
-//
-// Trade-off versus the real sidebar.php: an umbrella or project that has NO
-// equipment/forms added yet (via Add Equipment) will not appear in these
-// dropdowns, since project_forms has no row for it at all. The real
-// sidebar.php reads umbrella_projects instead specifically so brand-new,
-// still-empty umbrellas/projects are still selectable. Keep that in mind
-// when comparing behavior side-by-side.
-//
-// NOT wired into the live app — swap form.php to include this instead of
-// sidebar.php (see form_test.php) only for testing on the Ubuntu server.
+/*
+ * sidebar.php
+ * ---------------------------------------------------------------------
+ * Used two ways:
+ *   1) Included from form.php to render the umbrella/project/equipment
+ *      picker in the left sidebar.
+ *   2) Hit directly via fetch() as a JSON AJAX endpoint:
+ *        - ?action=get_projects&umbrella_id=...  -> list of project_ids
+ *        - ?project_id=...                       -> equipment/form list
+ *
+ * All fetch() URLs below are RELATIVE (no leading slash) because this
+ * file lives in the same directory as sidebar.php/uploads.php/
+ * get_form_data.php/forms/*.php on both dev (served from public/ as
+ * webroot) and prod (served under /trd_eig/public/). A relative path
+ * resolves correctly in both cases; a hardcoded /trd_eig/public/...
+ * path 404s on dev.
+ * ---------------------------------------------------------------------
+ */
 
-// ── AJAX: projects by umbrella_id (exact match, no LIKE) ─────────────────
-if (isset($_GET['umbrella_id'])) {
-    require_once __DIR__ . '/../config/database.php';
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+// Buffer everything so a stray notice/warning from anywhere (this file,
+// database.php, etc.) can never leak into a JSON response and break
+// response.json() on the client.
+ob_start();
+
+require_once __DIR__ . '/../config/database.php';
+
+$userName = $_SESSION['username'] ?? '';
+$desig    = $_SESSION['desig'] ?? '';
+$agency   = $_SESSION['executing_agency'] ?? '';
+
+// Some historical rows were written with "/" separators, some with "\".
+// Match either so old and new data both resolve to the logged-in user.
+$identityVariants = array_values(array_unique(array_filter([
+    trim($userName . '/' . $desig . '/' . $agency),
+    trim($userName . '\\' . $desig . '\\' . $agency),
+], fn($v) => $v !== '')));
+
+/*| AJAX: Get Project IDs for a given Umbrella ID (logged-in user only) |----*/
+if (isset($_GET['action']) && $_GET['action'] === 'get_projects') {
+    ob_clean();
     header('Content-Type: application/json');
-    $umbrella_id = trim($_GET['umbrella_id']);
 
+    $umbrellaId = trim($_GET['umbrella_id'] ?? '');
+    if ($umbrellaId === '' || empty($identityVariants)) {
+        echo json_encode(['success' => false, 'projects' => []]);
+        exit;
+    }
+
+    $placeholders = implode(',', array_fill(0, count($identityVariants), '?'));
     $stmt = $pdo->prepare("
         SELECT DISTINCT project_id
         FROM project_forms
         WHERE umbrella_id = ?
-        ORDER BY project_id ASC
+          AND assigned_to IN ($placeholders)
+          AND project_id IS NOT NULL
+          AND project_id <> ''
+        ORDER BY project_id
     ");
-    $stmt->execute([$umbrella_id]);
-    echo json_encode(['projects' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
+    $stmt->execute([$umbrellaId, ...$identityVariants]);
+
+    echo json_encode([
+        'success'  => true,
+        'projects' => $stmt->fetchAll(PDO::FETCH_COLUMN),
+    ]);
     exit;
 }
 
-// ── AJAX: equipment by project_id ─────────────────────────────────────────
+/*| AJAX: Get Equipment/Form list for a given Project ID (logged-in user only) |*/
 if (isset($_GET['project_id'])) {
-    session_start();
-    require_once __DIR__ . '/../config/database.php';
+    ob_clean();
     header('Content-Type: application/json');
-    $project_id = trim($_GET['project_id']);
 
-    // Only forms assigned to this exact logged-in user (matched as
-    // "username\desig\executing_agency", the same format add_equipment.php's
-    // dropdown writes) are shown — everything else stays hidden, including
-    // forms assigned to anyone else.
-    $identity = trim(($_SESSION['username'] ?? '') . '\\' . ($_SESSION['desig'] ?? '') . '\\' . ($_SESSION['executing_agency'] ?? ''));
+    $projectId = trim($_GET['project_id'] ?? '');
+    if ($projectId === '' || empty($identityVariants)) {
+        echo json_encode(['type_project' => '', 'equipment' => []]);
+        exit;
+    }
 
-    // Get saved forms grouped by form_no with filled counts — unchanged from
-    // sidebar.php, this part was already project_forms-only.
+    $placeholders = implode(',', array_fill(0, count($identityVariants), '?'));
     $stmt = $pdo->prepare("
         SELECT form_name, form_no, unique_form_id, sequence_label, is_filled
         FROM project_forms
         WHERE project_id = ?
-          AND assigned_to = ?
+          AND assigned_to IN ($placeholders)
         ORDER BY form_no ASC, sequence_label ASC
     ");
-    $stmt->execute([$project_id, $identity]);
-    $rows = $stmt->fetchAll();
+    $stmt->execute([$projectId, ...$identityVariants]);
 
-    // Group rows by form_no
+    $rows = $stmt->fetchAll();
     $grouped = [];
+
     foreach ($rows as $row) {
         $key = $row['form_no'];
         if (!isset($grouped[$key])) {
@@ -78,8 +105,12 @@ if (isset($_GET['project_id'])) {
                 'instances' => [],
             ];
         }
+
         $grouped[$key]['total']++;
-        if ((int)$row['is_filled'] === 1) $grouped[$key]['filled']++;
+        if ((int)$row['is_filled'] === 1) {
+            $grouped[$key]['filled']++;
+        }
+
         $grouped[$key]['instances'][] = [
             'uid'       => $row['unique_form_id'],
             'label'     => $row['sequence_label'],
@@ -88,34 +119,38 @@ if (isset($_GET['project_id'])) {
     }
 
     echo json_encode([
-        'type_project' => '', // no umbrella_projects lookup here — unused by formUrl() anyway
+        'type_project' => '',
         'equipment'    => array_values($grouped),
     ]);
     exit;
 }
 
-// ── Normal page load: fetch umbrellas only, from project_forms ────────────
-require_once __DIR__ . '/../config/database.php';
-$umbrellas = [];
-try {
-    $stmt = $pdo->query("
+/*| Normal page render: Umbrella IDs for the logged-in user |----------------*/
+if (!empty($identityVariants)) {
+    $placeholders = implode(',', array_fill(0, count($identityVariants), '?'));
+    $stmt = $pdo->prepare("
         SELECT DISTINCT umbrella_id
         FROM project_forms
-        WHERE umbrella_id IS NOT NULL AND umbrella_id <> ''
-        ORDER BY umbrella_id ASC
+        WHERE assigned_to IN ($placeholders)
+          AND umbrella_id IS NOT NULL
+          AND umbrella_id <> ''
+        ORDER BY umbrella_id
     ");
-    $umbrellas = $stmt->fetchAll(PDO::FETCH_ASSOC);
-} catch (Exception $e) {
+    $stmt->execute($identityVariants);
+    $umbrellas = $stmt->fetchAll(PDO::FETCH_COLUMN);
+} else {
     $umbrellas = [];
 }
+
+// From here on we're rendering HTML, so let the buffered output flow
+// normally to the browser.
+ob_end_flush();
 ?>
-
 <div class="max-w-sm">
-
     <!-- Heading -->
     <div class="mb-6">
-        <h2 class="text-lg font-bold text-gray-800">Project Filter <span class="text-xs font-normal text-amber-600">(TEST — project_forms only)</span></h2>
-        <p class="text-xs text-gray-400 mt-0.5">Select umbrella and project to load equipment.</p>
+        <h2 class="text-lg font-bold text-gray-800">Field User Console</h2>
+        <p class="text-xs text-gray-400 mt-0.5">Select umbrella and project to load Forms</p>
     </div>
 
     <!-- Umbrella ID Dropdown -->
@@ -123,12 +158,14 @@ try {
         <label class="block text-sm font-medium text-gray-700 mb-1">
             Umbrella ID <span class="text-red-500">*</span>
         </label>
-        <select id="umbrella_id"
-            class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+        <select
+            id="umbrella_id"
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
+        >
             <option value="">-- Select Umbrella --</option>
-            <?php foreach ($umbrellas as $row): ?>
-                <option value="<?= htmlspecialchars($row['umbrella_id']) ?>">
-                    <?= htmlspecialchars($row['umbrella_id']) ?>
+            <?php foreach ($umbrellas as $umbrellaId): ?>
+                <option value="<?= htmlspecialchars($umbrellaId) ?>">
+                    <?= htmlspecialchars($umbrellaId) ?>
                 </option>
             <?php endforeach; ?>
         </select>
@@ -139,16 +176,18 @@ try {
         <label class="block text-sm font-medium text-gray-700 mb-1">
             Project ID <span class="text-red-500">*</span>
         </label>
-        <select id="project_id"
-            class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-            <option value="">-- Select Project --</option>
+        <select
+            id="project_id"
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
+            disabled>
+            <option value="">-- First Select Umbrella --</option>
         </select>
     </div>
 
     <!-- Equipment List -->
     <div class="mb-6">
         <label class="block text-sm font-medium text-gray-700 mb-2">
-            Equipment &amp; Forms
+            Equipment Data Entry Forms
         </label>
         <div class="border border-gray-200 rounded-lg overflow-hidden">
             <ul id="equipment_list" class="divide-y divide-gray-100">
@@ -170,49 +209,62 @@ try {
             Continue
         </button>
     </div>
-
 </div>
 
 <script>
-// ── Umbrella → Project ──────────────────────────────────────────────────
-document.getElementById('umbrella_id').addEventListener('change', function () {
-    const umbrellaId      = this.value;
-    const projectDropdown = document.getElementById('project_id');
-    const equipmentList   = document.getElementById('equipment_list');
+const umbrellaDropdown = document.getElementById('umbrella_id');
+const projectDropdown  = document.getElementById('project_id');
 
-    projectDropdown.innerHTML = '<option value="">-- Select Project --</option>';
-    equipmentList.innerHTML   = '<li class="px-3 py-3 text-sm text-gray-400 text-center">— Select a project first —</li>';
+umbrellaDropdown.addEventListener('change', function () {
+    const umbrellaId = this.value;
+    projectDropdown.innerHTML = '<option value="">Loading Projects...</option>';
+    projectDropdown.disabled = true;
 
-    if (!umbrellaId) return;
+    if (!umbrellaId) {
+        projectDropdown.innerHTML = '<option value="">-- First Select Umbrella --</option>';
+        return;
+    }
 
-    fetch('/trd_eig/public/sidebar_test.php?umbrella_id=' + encodeURIComponent(umbrellaId))
-        .then(res => res.json())
+    fetch('sidebar.php?action=get_projects&umbrella_id=' + encodeURIComponent(umbrellaId))
+        .then(response => {
+            if (!response.ok) throw new Error('HTTP ' + response.status);
+            return response.json();
+        })
         .then(data => {
-            data.projects.forEach(function (p) {
-                const option       = document.createElement('option');
-                option.value       = p.project_id;
-                option.textContent = p.project_id;
-                projectDropdown.appendChild(option);
-            });
+            projectDropdown.innerHTML = '<option value="">-- Select Project --</option>';
+            if (data.success && data.projects.length > 0) {
+                data.projects.forEach(projectId => {
+                    const option = document.createElement('option');
+                    option.value = projectId;
+                    option.textContent = projectId;
+                    projectDropdown.appendChild(option);
+                });
+                projectDropdown.disabled = false;
+            } else {
+                projectDropdown.innerHTML = '<option value="">No Projects Found</option>';
+            }
+        })
+        .catch(error => {
+            console.error('Project loading error:', error);
+            projectDropdown.innerHTML = '<option value="">Error Loading Projects</option>';
         });
 });
 
-// ── Build form page URL: filename is exactly form_name + .php ────────────
+// ── Build form page URL: filename is exactly form_name + .php ────────────────
 function formUrl(type, formName) {
-    return '/trd_eig/public/forms/' + formName + '.php';
+    const safeName = (formName || '').trim();
+    return '/trd_eig/public/forms/' + encodeURIComponent(safeName) + '.php';
 }
 
-// ── Current form-instance navigation state — one equipment item's A/B/C... ─
+// ── Current form-instance navigation state — one equipment item's A/B/C... ───
 window.formNav = { base: '', instances: [], currentIdx: 0, liIndex: -1 };
 
-// ── Warn before leaving a form that has entered-but-unsaved values ───────
 function hasUnsavedChanges() {
     const frame = document.getElementById('formFrame');
     if (!frame) return false;
     let doc;
     try { doc = frame.contentDocument; } catch (e) { return false; }
     if (!doc) return false;
-
     const fields = doc.querySelectorAll('input, textarea, select');
     for (let i = 0; i < fields.length; i++) {
         const f = fields[i];
@@ -231,40 +283,31 @@ function confirmLeaveIfDirty() {
     return confirm('This form has unsaved data. Leaving now will lose it. Continue?');
 }
 
-// ── Load a specific instance (A, B, C...) of the currently selected equipment
+// ── Load a specific instance (A, B, C...) of the currently selected equipment ─
 function loadNavInstance(idx) {
     const nav = window.formNav;
     if (!nav.instances.length || idx < 0 || idx >= nav.instances.length) return;
     if (!confirmLeaveIfDirty()) return;
-
     nav.currentIdx = idx;
     const uid = nav.instances[idx].uid;
     const url = nav.base + '?unique_form_id=' + encodeURIComponent(uid);
-
     const frame = document.getElementById('formFrame');
     if (frame) {
         frame.src = url + '&embed=1';
     } else {
         window.location.href = url;
     }
-
     highlightItem(nav.liIndex);
 }
 
-// ── Inject Prev / "Form N of Total" / Next next to the form's own Reset
-//    button. Runs after every iframe load (form.php calls this). Only shown
-//    when the equipment has more than one instance to fill. ───────────────
 function injectFormNav() {
     const nav = window.formNav;
     if (!nav.instances || nav.instances.length <= 1) return;
-
     const frame = document.getElementById('formFrame');
     if (!frame) return;
-
     let doc;
     try { doc = frame.contentDocument; } catch (e) { return; }
     if (!doc) return;
-
     let resetBtn = doc.querySelector('button[type="reset"]');
     if (!resetBtn) {
         resetBtn = Array.from(doc.querySelectorAll('button')).find(function (b) {
@@ -272,47 +315,37 @@ function injectFormNav() {
         });
     }
     if (!resetBtn) return;
-
     const row = resetBtn.parentElement;
     if (!row || row.querySelector('.eig-form-nav-injected')) return;
-
     const total   = nav.instances.length;
     const current = nav.currentIdx + 1;
     const btnCls  = 'eig-form-nav-injected px-5 py-2 text-sm font-medium bg-gray-700 text-white rounded-lg hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed';
-
     const prevBtn = doc.createElement('button');
     prevBtn.type = 'button';
     prevBtn.textContent = '← Prev';
     prevBtn.className = btnCls;
     prevBtn.disabled = nav.currentIdx <= 0;
     prevBtn.addEventListener('click', function () { loadNavInstance(nav.currentIdx - 1); });
-
     const label = doc.createElement('span');
     label.textContent = 'Form ' + current + ' of ' + total;
     label.className = 'eig-form-nav-injected text-sm font-medium text-gray-600 px-2';
-
     const nextBtn = doc.createElement('button');
     nextBtn.type = 'button';
     nextBtn.textContent = 'Next →';
     nextBtn.className = btnCls;
     nextBtn.disabled = nav.currentIdx >= total - 1;
     nextBtn.addEventListener('click', function () { loadNavInstance(nav.currentIdx + 1); });
-
     row.insertBefore(prevBtn, resetBtn);
     row.insertBefore(label, resetBtn);
     row.appendChild(nextBtn);
 }
 
-// ── Inject an Upload button next to Reset — shown on every form, unlike
-//    Prev/Next which only appear for multi-instance equipment. ────────────
 function injectUploadButton() {
     const frame = document.getElementById('formFrame');
     if (!frame) return;
-
     let doc;
     try { doc = frame.contentDocument; } catch (e) { return; }
     if (!doc) return;
-
     let resetBtn = doc.querySelector('button[type="reset"]');
     if (!resetBtn) {
         resetBtn = Array.from(doc.querySelectorAll('button')).find(function (b) {
@@ -320,39 +353,32 @@ function injectUploadButton() {
         });
     }
     if (!resetBtn) return;
-
     const row = resetBtn.parentElement;
     if (!row || row.querySelector('.eig-upload-btn-injected')) return;
-
     let uid = '';
     try { uid = new URLSearchParams(doc.location.search).get('unique_form_id') || ''; } catch (e) {}
-
     const uploadBtn = doc.createElement('button');
     uploadBtn.type = 'button';
     uploadBtn.textContent = 'Upload';
     uploadBtn.className = 'eig-upload-btn-injected px-5 py-2 text-sm font-medium bg-green-600 text-white rounded-lg hover:bg-green-700';
     uploadBtn.addEventListener('click', function () {
-        let url = '/trd_eig/public/uploads.php?scope=form';
+        let url = 'uploads.php?scope=form';
         if (uid) url += '&unique_form_id=' + encodeURIComponent(uid);
         frame.src = url + '&embed=1';
     });
-
     row.appendChild(uploadBtn);
 }
 
-// ── Inject the Unique Form ID just below "FORM NO" at the top-left badge ──
+// ── Inject the Unique Form ID just below "FORM NO" at the top-left badge ─────
 function injectUniqueFormId() {
     const frame = document.getElementById('formFrame');
     if (!frame) return;
-
     let doc;
     try { doc = frame.contentDocument; } catch (e) { return; }
     if (!doc) return;
-
     let uid = '';
     try { uid = new URLSearchParams(doc.location.search).get('unique_form_id') || ''; } catch (e) { return; }
     if (!uid) return;
-
     const formNoSpan = Array.from(doc.querySelectorAll('span')).find(function (s) {
         return s.textContent.trim() === 'FORM NO';
     });
@@ -381,7 +407,10 @@ function injectUniqueFormId() {
     formNoRow.insertAdjacentElement('afterend', idRow);
 }
 
-// ── Intercept each form's own submit and route it to save_form.php ───────
+// ── Intercept each form's own submit and route it to save_form.php ───────────
+// NOTE: save_form.php was not found in /var/www/trd_eig/public on the server
+// as of this edit. Create it (or update this URL to whatever endpoint
+// actually persists form data) or saving will 404.
 function interceptFormSave() {
     const frame = document.getElementById('formFrame');
     if (!frame) return;
@@ -408,7 +437,7 @@ function interceptFormSave() {
         const formData = new FormData(form);
         formData.set('unique_form_id', uid);
 
-        fetch('/trd_eig/public/save_form.php', { method: 'POST', body: formData })
+        fetch('save_form.php', { method: 'POST', body: formData })
             .then(res => res.json())
             .then(data => {
                 if (data.success) {
@@ -423,7 +452,7 @@ function interceptFormSave() {
     });
 }
 
-// ── Pre-fill a form's fields from previously saved data (if any) ─────────
+// ── Pre-fill a form's fields from previously saved data (if any) ─────────────
 function hydrateFormFromSaved() {
     const frame = document.getElementById('formFrame');
     if (!frame) return;
@@ -440,7 +469,7 @@ function hydrateFormFromSaved() {
     if (!form || form.dataset.eigHydrated) return;
     form.dataset.eigHydrated = '1';
 
-    fetch('/trd_eig/public/get_form_data.php?unique_form_id=' + encodeURIComponent(uid))
+    fetch('get_form_data.php?unique_form_id=' + encodeURIComponent(uid))
         .then(res => res.json())
         .then(result => {
             if (!result.success || !result.data) return;
@@ -468,7 +497,7 @@ function hydrateFormFromSaved() {
         .catch(() => {});
 }
 
-// ── Render equipment list ─────────────────────────────────────────────────
+// ── Render equipment list ─────────────────────────────────────────────────────
 function renderEquipment(equipmentList, data) {
     if (data.equipment.length === 0) {
         equipmentList.innerHTML = '<li class="px-3 py-3 text-sm text-gray-400 text-center">No equipment added for this project yet.</li>';
@@ -524,7 +553,6 @@ function renderEquipment(equipmentList, data) {
         });
 
         li.appendChild(row1);
-
         equipmentList.appendChild(li);
     });
 }
@@ -537,7 +565,7 @@ function highlightItem(idx) {
     if (items[idx]) items[idx].style.background = '#eff6ff';
 }
 
-// ── Project → Equipment ────────────────────────────────────────────────────
+// ── Project → Equipment ───────────────────────────────────────────────────────
 document.getElementById('project_id').addEventListener('change', function () {
     const projectId     = this.value;
     const equipmentList = document.getElementById('equipment_list');
@@ -549,12 +577,16 @@ document.getElementById('project_id').addEventListener('change', function () {
         return;
     }
 
-    fetch('/trd_eig/public/sidebar_test.php?project_id=' + encodeURIComponent(projectId))
+    fetch('sidebar.php?project_id=' + encodeURIComponent(projectId))
         .then(res => res.json())
-        .then(data => renderEquipment(equipmentList, data));
+        .then(data => renderEquipment(equipmentList, data))
+        .catch(error => {
+            console.error('Equipment loading error:', error);
+            equipmentList.innerHTML = '<li class="px-3 py-3 text-sm text-red-400 text-center">Error loading forms.</li>';
+        });
 });
 
-// ── Listen for form-filled message from iframe ─────────────────────────────
+// ── Listen for form-filled message from iframe ────────────────────────────────
 window.addEventListener('message', function (ev) {
     if (ev.data && ev.data.type === 'formFilled') {
         const sel = document.getElementById('project_id');
@@ -562,7 +594,7 @@ window.addEventListener('message', function (ev) {
     }
 });
 
-// ── Reset ────────────────────────────────────────────────────────────────
+// ── Reset ─────────────────────────────────────────────────────────────────────
 document.getElementById('resetBtn').addEventListener('click', function () {
     document.getElementById('umbrella_id').value = '';
     document.getElementById('project_id').innerHTML  = '<option value="">-- Select Project --</option>';

@@ -4,34 +4,26 @@ session_start();
 function redirectByRole(string $role): void
 {
     $role = strtoupper(trim($role));
-
     $page = match ($role) {
         'SUPERADMIN' => 'superadmin.php',
         'ADMIN' => 'admin_home.php',
         'FIELD USER' => 'form.php',
         default => 'index.php',
     };
-
     header('Location: ' . $page);
     exit;
 }
-
-// If already logged in, redirect according to the saved role.
 if (!empty($_SESSION['user_id'])) {
     redirectByRole($_SESSION['role'] ?? '');
 }
 
 require_once __DIR__ . '/../config/database.php';
-
 $login_error   = '';
 $login_success = false;
 $logged_in_user = '';
-
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-
     $mobile = trim($_POST['mobile'] ?? '');
     $password  = $_POST['password'] ?? '';
-
     if ($mobile === '' || $password === '') {
         $login_error = 'Please enter both mobile number and password.';
     } else {
@@ -43,9 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         );
         $stmt->execute([$mobile]);
         $user = $stmt->fetch();
-
         if ($user && password_verify($password, $user['password'])) {
-
             if ($user['status'] != 1) {
                 $login_error = 'Your account is inactive. Please contact the administrator.';
             } else {
@@ -61,7 +51,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 redirectByRole($user['role']);
             }
-
         } else {
             $login_error = 'Invalid mobile number or password.';
         }
