@@ -1,15 +1,4 @@
 <?php
-// Shared "build the whole umbrella tree" data-gathering logic — used by
-// tree_view.php (its own JSON tree + the popup), final_report.php, and
-// final_report_book.php, so all three never drift out of sync.
-//
-// Connects to:
-//   - tree_view.php          — calls eig_build_umbrella_tree() for its JSON
-//   - final_report.php       — calls eig_build_umbrella_tree() for the report
-//   - final_report_book.php  — calls eig_build_umbrella_tree(), plus
-//                               eig_mutool_path() / eig_stamp_pdf_pages()
-//                               for merging uploads and stamping page numbers
-
 const EIG_DOC_LABELS = [
     'project_approval' => 'Project Approval',
     'project_drawing'  => 'Project Drawing',
@@ -18,6 +7,16 @@ const EIG_DOC_LABELS = [
     'photograph'       => 'Photograph',
     'calibration_cert' => 'Calibration Cert',
 ];
+
+
+function like_escape(string $value): string
+{
+    return str_replace(
+        ['\\', '%', '_'],
+        ['\\\\', '\\%', '\\_'],
+        $value
+    );
+}
 
 function eig_fetch_uploads(PDO $pdo, string $type, string $scopedId): array
 {
@@ -32,10 +31,6 @@ function eig_fetch_uploads(PDO $pdo, string $type, string $scopedId): array
     return $rows;
 }
 
-// Returns null if the umbrella doesn't exist, otherwise the full nested
-// structure: the umbrella + its uploads, every project under it + their
-// uploads, every added form + fill status, and every filled instance's own
-// uploads.
 function eig_build_umbrella_tree(PDO $pdo, string $umbrellaId): ?array
 {
     $stmt = $pdo->prepare("SELECT project_data, created_at FROM umbrella_projects WHERE type = 'UPID' AND common_id = ? LIMIT 1");
@@ -57,9 +52,6 @@ function eig_build_umbrella_tree(PDO $pdo, string $umbrellaId): ?array
         'uploads'    => eig_fetch_uploads($pdo, 'ULUPID', $umbrellaId),
     ];
 
-    // A project's common_id always starts with "{parent umbrella's
-    // common_id}||PID\", so a LIKE prefix match finds all of them without
-    // needing a JSON parent-link lookup.
     $stmt = $pdo->prepare("
         SELECT common_id, type_project, project_data
         FROM umbrella_projects
@@ -113,9 +105,6 @@ function eig_build_umbrella_tree(PDO $pdo, string $umbrellaId): ?array
     return ['umbrella' => $umbrella, 'projects' => $projects];
 }
 
-// Absolute path to the mutool (MuPDF) CLI, used both to merge real uploaded
-// PDF pages into the book report and to stamp page numbers/footer text onto
-// generated reports (see eig_stamp_pdf_pages() below).
 function eig_mutool_path(): string
 {
     $winget = 'C:\\Users\\USER\\AppData\\Local\\Microsoft\\WinGet\\Packages\\ArtifexSoftware.mutool_Microsoft.Winget.Source_8wekyb3d8bbwe\\mupdf-1.23.0-windows\\mutool.exe';

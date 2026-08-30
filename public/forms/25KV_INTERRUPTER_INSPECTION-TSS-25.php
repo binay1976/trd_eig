@@ -1,5 +1,15 @@
+<script src="https://cdn.tailwindcss.com"></script>
 <div class="max-w-5xl mx-auto px-4">
-    <!-- Page Title -->
+    
+    <!-- Form ID Badge -->
+    <div style="display:inline-block; background:#003366; color:#fff;
+                padding:8px 18px; border-radius:8px; margin-bottom:18px;
+                font-family:Calibri,Arial,sans-serif; font-size:13px; line-height:1.7;">
+        <div><span style="opacity:.75;font-size:11px;letter-spacing:.5px;">FORM NO</span>
+             &nbsp;<strong style="font-size:15px;">TSS-25</strong></div>
+        <div style="font-size:12px; opacity:.9;">TSS-25KV INTERRUPTER INSPECTION</div>
+    </div>
+<!-- Page Title -->
     <div class="mb-6">
         <h2 class="text-2xl font-bold text-gray-800">
             25KV Interrupter Inspection
@@ -10,26 +20,15 @@
     </div>
 
     <!-- Form -->
-    <form action="actions/save_25kv_interrupter.php" method="POST" class="space-y-6">
+    <form action="/trd_eig/public/save_form.php?unique_form_id=<?= htmlspecialchars($_GET['unique_form_id'] ?? '') ?>" method="POST" class="space-y-6">
 
         <!-- Section -->
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
 
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-6">
 
                 <!-- A -->
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">
-                        Name of the <span class="text-red-500">*</span>
-                    </label>
-                    <select name="name_of" required
-                        class="w-full px-4 py-3 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
-                        <option value="">Select</option>
-                        <option value="TSS">TSS</option>
-                        <option value="SS">SS</option>
-                        <option value="SSP">SSP</option>
-                    </select>
-                </div>
+                
 
                 <!-- 1 -->
                 <div>

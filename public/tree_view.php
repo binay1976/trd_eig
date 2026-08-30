@@ -1,22 +1,7 @@
 <?php
-// Umbrella "tree" explorer — pick an umbrella, see everything under it at
-// once: its projects, each project's uploads and added forms, each form's
-// fill status, and each filled form instance's own uploads. Pure read-only
-// view, built on top of eig_build_umbrella_tree()'s single nested structure.
-//
-// Connects to:
-//   - config/tree_data.php    — supplies eig_build_umbrella_tree() (the data)
-//   - js/tree_view.js         — renders the tree below and drives the popup
-//   - view_file.php           — opened inside the popup for an upload click
-//   - view_form.php           — opened inside the popup for a form click
-//   - final_report.php        — opened inside the popup, "View PDF Report"
-//   - final_report_book.php   — opened inside the popup, "View Full Book"
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/tree_data.php';
 
-// ── AJAX: full nested tree for one umbrella ───────────────────────────────
-// Was its own file (get_tree.php); folded in here since this is the only
-// page that ever calls it, same self-contained-AJAX pattern as sidebar.php.
 if (isset($_GET['umbrella_id'])) {
     header('Content-Type: application/json');
     $umbrellaId = trim($_GET['umbrella_id']);
@@ -112,9 +97,8 @@ $umbrellas = $pdo->query("
 </style>
 
 <div class="max-w-5xl mx-auto">
-
     <div class="mb-6">
-        <h2 class="text-2xl font-bold text-gray-800">Umbrella Tree View</h2>
+        <h2 class="text-2xl font-bold text-gray-800">EIG Project Tree View</h2>
         <p class="text-sm text-gray-500 mt-1">Select an umbrella to see every project, form, and upload underneath it.</p>
     </div>
 

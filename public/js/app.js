@@ -50,6 +50,14 @@ function loadPage(page) {
         pageFile = "tree_view.php";
         break;
 
+    case "tree":
+        pageFile = "tree_view.php";
+        break;
+
+    case "dashboard2":
+        pageFile = "admin_dashboard2.php";
+        break;
+
     default:
         pageFile = "admin_dashboard.php";
     }

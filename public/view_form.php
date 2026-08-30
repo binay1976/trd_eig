@@ -1,14 +1,4 @@
 <?php
-// Read-only viewer for one filled form instance — used inside tree_view.php's
-// popup. Loads the real form file (correct labels/layout) in an iframe,
-// pre-fills it from get_form_data.php the same way sidebar.php's
-// hydrateFormFromSaved() does, then locks every field and hides all buttons.
-// No save path exists here — view only, by design.
-//
-// Connects to:
-//   - js/tree_view.js    — builds this file's URL and opens it in the popup
-//   - forms/*.php        — the real form file loaded into the iframe below
-//   - get_form_data.php  — supplies the saved field values used to pre-fill it
 require_once __DIR__ . '/../config/database.php';
 
 $uniqueFormId = trim($_GET['unique_form_id'] ?? '');

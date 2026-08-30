@@ -253,7 +253,8 @@ umbrellaDropdown.addEventListener('change', function () {
 // ── Build form page URL: filename is exactly form_name + .php ────────────────
 function formUrl(type, formName) {
     const safeName = (formName || '').trim();
-    return '/trd_eig/public/forms/' + encodeURIComponent(safeName) + '.php';
+    if (!safeName) return '';
+    return 'forms/' + safeName + '.php';
 }
 
 // ── Current form-instance navigation state — one equipment item's A/B/C... ───
