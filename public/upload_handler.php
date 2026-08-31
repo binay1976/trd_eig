@@ -41,9 +41,17 @@ if ($uploadType === '') {
     $uploadType = isset($_POST['project_id']) ? 'PID' : 'UPID';
 }
 
-$uploadDirectory = $uploadType === 'PID'
-    ? 'uploads/project/'
-    : 'uploads/umbrella/';
+$uploadDirectories = [
+    'UPID'  => 'uploads/umbrella/',
+    'PID'   => 'uploads/project/',
+    'ULEID' => 'uploads/forms/',
+];
+
+if (!isset($uploadDirectories[$uploadType])) {
+    fail('Invalid upload type.');
+}
+
+$uploadDirectory = $uploadDirectories[$uploadType];
 
 if (
     $targetId === '' ||

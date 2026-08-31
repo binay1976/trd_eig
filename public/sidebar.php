@@ -199,14 +199,10 @@ ob_end_flush();
     </div>
 
     <!-- Buttons -->
-    <div class="flex gap-3">
+    <div class="flex gap-6">
         <button type="button" id="resetBtn"
             class="flex-1 px-4 py-2 text-sm font-medium bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">
             Reset
-        </button>
-        <button type="button"
-            class="flex-1 px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-            Continue
         </button>
     </div>
 </div>

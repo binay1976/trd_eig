@@ -1,64 +1,32 @@
 <?php
-// Unified "serve an uploaded file back for viewing" endpoint
-// (?scope=umbrella | project | form). Sanitizes the ID the same way
-// upload_handler.php did before saving, or the lookup can never find what's
-// actually on disk. Replaces the old view_files.php, project_view_files.php,
-// and forms_view_files.php.
-//
-// Connects to:
-//   - js/tree_view.js  — builds this file's URL and opens it in the popup
-//   - upload_handler.php — must sanitize scoped IDs identically to this file
+// This Code is for Showing Uploaded files----------------------------------------------------------------------------
 
-$SCOPES = [
-    'umbrella' => [
-        'param'     => 'umbrella_id',
-        'folder'    => 'umbrella',
-        'documents' => ['Project Approval', 'Project Drawing', 'Circuit Diagram'],
-    ],
-    'project' => [
-        'param'     => 'project_id',
-        'folder'    => 'project',
-        'documents' => ['Project Approval', 'Project Drawing', 'Circuit Diagram'],
-    ],
-    'form' => [
-        'param'     => 'unique_form_id',
-        'folder'    => 'forms',
-        'documents' => ['Test Report', 'Photograph', 'Calibration Cert'],
-    ],
-];
 
-$scope = $_GET['scope'] ?? '';
-if (!isset($SCOPES[$scope])) {
-    http_response_code(400);
-    exit('Invalid or missing scope.');
-}
-$cfg = $SCOPES[$scope];
-
-$scopedId     = trim($_GET[$cfg['param']]   ?? '');
+const UPLOAD_ROOT = __DIR__ . '/../uploads';
+$isProject = isset($_GET['project_id']);
+$targetId = trim($_GET[$isProject ? 'project_id' : 'umbrella_id'] ?? '');
+$validationId = str_replace(['\\', '|'], '', $targetId);
 $documentName = trim($_GET['document_name'] ?? '');
 
+$allowedDocuments = [
+    'Project Approval',
+    'Project Drawing',
+    'Circuit Diagram'
+];
 $allowedExtensions = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'jpg', 'jpeg', 'png'];
 
 if (
-    $scopedId === '' ||
-    !in_array($documentName, $cfg['documents'], true)
+    !preg_match('/^[A-Za-z0-9_-]+$/', $validationId) ||
+    !in_array($documentName, $allowedDocuments, true)
 ) {
     http_response_code(400);
     exit('Invalid file request.');
 }
 
-// Same sanitization upload_handler.php applies before saving — must match
-// exactly, or a lookup can never find what was actually stored on disk.
-$safeScopedId      = preg_replace('/[^A-Za-z0-9_-]/', '_', $scopedId);
-$safeDocumentName  = preg_replace('/[^A-Za-z0-9_-]/', '_', $documentName);
-
-if ($safeScopedId === '') {
-    http_response_code(400);
-    exit('Invalid file request.');
-}
-
-$uploadDir = __DIR__ . '/../uploads/' . $cfg['folder'];
-$files = glob($uploadDir . '/' . $safeScopedId . '_' . $safeDocumentName . '.*');
+$safeDocumentName = preg_replace('/[^A-Za-z0-9_-]/', '_', $documentName);
+$safeTargetId = preg_replace('/[^A-Za-z0-9_-]/', '_', $targetId);
+$uploadDirectory = $isProject ? 'project' : 'umbrella';
+$files = glob(UPLOAD_ROOT . '/' . $uploadDirectory . '/' . $safeTargetId . '_' . $safeDocumentName . '.*');
 $files = array_filter($files, function ($file) use ($allowedExtensions) {
     return is_file($file) && in_array(strtolower(pathinfo($file, PATHINFO_EXTENSION)), $allowedExtensions, true);
 });

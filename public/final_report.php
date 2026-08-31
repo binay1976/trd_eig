@@ -1,16 +1,4 @@
 <?php
-// Multi-page PDF report for one umbrella — cover page, then a summary page,
-// then one section per project (details, uploads, and every added form's
-// fill status + its own uploads). Streamed INLINE so it displays inside
-// tree_view.php's popup instead of downloading. Uses Dompdf (Composer).
-// Data comes from the same shared source as tree_view.php's JSON tree
-// (config/tree_data.php), so the report and the on-screen tree never
-// disagree with each other.
-//
-// Connects to:
-//   - config/tree_data.php  — eig_build_umbrella_tree(), eig_stamp_pdf_pages()
-//   - js/tree_view.js       — opens this file's URL inside the popup
-//   - vendor/dompdf         — the PDF rendering library (Composer)
 require_once __DIR__ . '/../vendor/autoload.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/tree_data.php';
@@ -34,23 +22,10 @@ if ($tree === null) {
 $umbrella = $tree['umbrella'];
 $projects = $tree['projects'];
 
-// Full raw project_data for the umbrella (tree_data.php only exposes summary
-// fields) — needed for the PCEE sanction page's templated sentence below.
 $stmt = $pdo->prepare("SELECT project_data FROM umbrella_projects WHERE type = 'UPID' AND common_id = ? LIMIT 1");
 $stmt->execute([$umbrellaId]);
 $umbrellaFullData = json_decode($stmt->fetchColumn() ?: '{}', true) ?: [];
 
-// --------------------------------------------------
-// Background Image (optional — falls back to a plain colour if missing,
-// rather than dying, since no cover image has been supplied yet)
-// --------------------------------------------------
-// Dompdf does not reliably support the "cover" background-size keyword (it
-// was leaving the image short of the page's height, cropping the top and
-// showing blank canvas at the bottom) — so the cover-fit size is computed by
-// hand in pixels from the image's real dimensions and forced explicitly.
-// Also note: Dompdf's default is 96 css-px-per-inch, not 72 (a PDF point),
-// so an A4 page (595.28 x 841.89 pt) is really 794 x 1123 in this css-px
-// unit — matches the .cover-page height/width set below.
 $backgroundImage = __DIR__ . '/images/report-cover.jpg';
 $coverStyle = 'background-color: #1E3A5F;';
 $coverPageW = 794;

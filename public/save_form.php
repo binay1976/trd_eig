@@ -1,9 +1,4 @@
 <?php
-// Shared save target for ALL 66 form pages (sidebar.php's interceptFormSave()
-// hijacks each form's native submit and posts here instead, since their own
-// save_xxx.php targets never existed). Upserts a type='EID' row keyed by
-// unique_form_id, storing every submitted field generically in project_data,
-// and flips project_forms.is_filled so the sidebar badge updates.
 session_start();
 header('Content-Type: application/json');
 require_once __DIR__ . '/../config/database.php';
@@ -21,8 +16,6 @@ if ($unique_form_id === '') {
     exit;
 }
 
-// Everything else submitted is the form's own field data — captured generically
-// so this one endpoint works for all 66 different form layouts.
 $field_data = $_POST;
 unset($field_data['unique_form_id']);
 
@@ -32,10 +25,6 @@ if ($project_json === false) {
     echo json_encode(['success' => false, 'message' => 'Failed to encode form data.']);
     exit;
 }
-
-// unique_id is the bare "EID\{form_no}\{seq}" portion — everything after the
-// last "||" in the full unique_form_id (which already carries its full lineage:
-// {umbrella_common_id}||PID\...||EID\{form_no}\{seq}).
 $parts     = explode('||', $unique_form_id);
 $unique_id = end($parts);
 

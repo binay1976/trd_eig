@@ -1,18 +1,4 @@
 <?php
-// Compiles a full "book" PDF for one umbrella: umbrella form data, then for
-// each project — its form data, its uploaded documents (real pages), then
-// every added equipment form in order (filled data or "not filled" page,
-// followed by that form's own uploads). Real PDFs are merged page-for-page
-// using mutool (MuPDF); images become their own full page; Word/Excel
-// uploads get a placeholder page since there's no converter installed.
-//
-// Connects to:
-//   - config/tree_data.php  — eig_build_umbrella_tree(), eig_mutool_path(),
-//                             eig_stamp_pdf_pages()
-//   - js/tree_view.js       — opens this file's URL inside the popup
-//   - vendor/dompdf         — renders each individual page (Composer)
-//   - mutool (external CLI) — merges pages and real uploaded PDFs together
-
 require_once __DIR__ . '/../vendor/autoload.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/tree_data.php';
@@ -223,23 +209,122 @@ function renderPlaceholderPage(string $label, string $filename, string $tmpDir):
     return renderPageToTempPdf($html, $tmpDir);
 }
 
+// function appendUploadPages(array &$pages, array $upload, string $tmpDir): void
+// {
+//     $filePath = dirname(__DIR__) . '/' . ltrim($upload['file_path'] ?? '', '/');
+
+//     if ($upload['file_path'] === '' || !is_file($filePath)) {
+//         $pages[] = renderPlaceholderPage($upload['label'] ?? 'Document', ($upload['original_name'] ?? 'unknown') . ' (file missing)', $tmpDir);
+//         return;
+//     }
+
+//     $ext = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
+
+//     if ($ext === 'pdf') {
+//         $pages[] = $filePath; 
+//     } elseif (in_array($ext, ['jpg', 'jpeg', 'png'], true)) {
+//         $pages[] = renderImagePage(($upload['label'] ?? 'Document') . ': ' . ($upload['original_name'] ?? ''), $filePath, $tmpDir);
+//     } else {
+//         $pages[] = renderPlaceholderPage($upload['label'] ?? 'Document', $upload['original_name'] ?? basename($filePath), $tmpDir);
+//     }
+// }
+
+
 function appendUploadPages(array &$pages, array $upload, string $tmpDir): void
 {
-    $filePath = dirname(__DIR__) . '/' . ltrim($upload['file_path'] ?? '', '/');
+    $uploadRoot = dirname(__DIR__) . '/uploads';
 
-    if ($upload['file_path'] === '' || !is_file($filePath)) {
-        $pages[] = renderPlaceholderPage($upload['label'] ?? 'Document', ($upload['original_name'] ?? 'unknown') . ' (file missing)', $tmpDir);
+    // Path stored in database
+    $dbPath = trim($upload['file_path'] ?? '');
+
+    if ($dbPath === '') {
+        $pages[] = renderPlaceholderPage(
+            $upload['label'] ?? 'Document',
+            ($upload['original_name'] ?? 'unknown') . ' (file path missing)',
+            $tmpDir
+        );
         return;
     }
 
+    /*
+     * Resolve the actual physical file path.
+     */
+
+    // If DB already contains full Linux path
+    if (isset($dbPath[0]) && $dbPath[0] === '/') {
+
+        $filePath = $dbPath;
+
+    } else {
+
+        // Remove leading slash
+        $relativePath = ltrim($dbPath, '/');
+
+        /*
+         * Handle different possible DB path formats:
+         *
+         * umbrella/file.pdf
+         * project/file.pdf
+         * uploads/umbrella/file.pdf
+         */
+
+        $relativePath = preg_replace(
+            '#^uploads/#',
+            '',
+            $relativePath
+        );
+
+        $filePath = $uploadRoot . '/' . $relativePath;
+    }
+
+    // Debug logs - useful while testing
+    error_log('========================================');
+    error_log('UPLOAD DB PATH: ' . $dbPath);
+    error_log('RESOLVED FILE PATH: ' . $filePath);
+    error_log('FILE EXISTS: ' . (is_file($filePath) ? 'YES' : 'NO'));
+
+    // File missing
+    if (!is_file($filePath)) {
+
+        $pages[] = renderPlaceholderPage(
+            $upload['label'] ?? 'Document',
+            ($upload['original_name'] ?? 'unknown') . ' (file missing)',
+            $tmpDir
+        );
+
+        return;
+    }
+
+    // Get extension
     $ext = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
 
+    // PDF - directly add to mutool merge
     if ($ext === 'pdf') {
-        $pages[] = $filePath; 
-    } elseif (in_array($ext, ['jpg', 'jpeg', 'png'], true)) {
-        $pages[] = renderImagePage(($upload['label'] ?? 'Document') . ': ' . ($upload['original_name'] ?? ''), $filePath, $tmpDir);
-    } else {
-        $pages[] = renderPlaceholderPage($upload['label'] ?? 'Document', $upload['original_name'] ?? basename($filePath), $tmpDir);
+
+        $pages[] = $filePath;
+
+    }
+
+    // Images - convert to PDF page
+    elseif (in_array($ext, ['jpg', 'jpeg', 'png'], true)) {
+
+        $pages[] = renderImagePage(
+            ($upload['label'] ?? 'Document') . ': ' .
+            ($upload['original_name'] ?? ''),
+            $filePath,
+            $tmpDir
+        );
+
+    }
+
+    // Word / Excel etc.
+    else {
+
+        $pages[] = renderPlaceholderPage(
+            $upload['label'] ?? 'Document',
+            $upload['original_name'] ?? basename($filePath),
+            $tmpDir
+        );
     }
 }
 
@@ -302,8 +387,8 @@ $coverHtml = '<html><head><style>
     .pcee-body { font-size: 18px; line-height: 1.9; text-align: center; color: #0c0d0f; }
 
     .pcee-footer { position: absolute; width: 100%; color: #e61313; font-weight: bold; font-size: 16px; font-weight: bold; letter-spacing: 0.5px; }
-    .pcee-footer .left { position: absolute; top: 700px; left: 10%; }
-    .pcee-footer .right { position: absolute; top: 730px; left: 10%; }
+    .pcee-footer .left { position: absolute; top: 600px; left: 10%; }
+    .pcee-footer .right { position: absolute; top: 630px; left: 10%; }
 </style></head><body>
 <div class="page-border"></div>
 <div class="cover">

@@ -12,6 +12,7 @@ scp -i "C:\Users\tc312\.ssh\etro_key" -r bdts1022@10.3.184.218:/var/www/trd_eig/
 
 Push to Server:- 
 scp -i "C:\Users\tc312\.ssh\etro_key" -r "C:\Users\tc312\Desktop\trd_eig\*" bdts1022@10.3.184.218:/var/www/trd_eig/
+scp -i "C:\Users\tc312\.ssh\etro_key" -r "C:\Users\tc312\Desktop\trd_eig\public\*" bdts1022@10.3.184.218:/var/www/trd_eig/public
 
 /var/www/trd_eig
 /var/www/trd_eig/app/

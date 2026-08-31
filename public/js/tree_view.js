@@ -1,17 +1,3 @@
-// tree_view.js — fetches tree_view.php's own nested JSON (?umbrella_id=...)
-// for one umbrella and renders it as an actual branching tree (nested
-// <ul>/<li> with CSS connector lines, see tree_view.php's <style> block).
-// Every upload and every form instance is clickable, opening a read-only
-// popup.
-//
-// Connects to:
-//   - tree_view.php          — hosts this script and the popup markup
-//                               (#eigModalOverlay / #eigModalFrame) it drives
-//   - view_file.php          — popup target for an upload chip
-//   - view_form.php          — popup target for a form instance chip
-//   - final_report.php       — popup target, "View PDF Report" link
-//   - final_report_book.php  — popup target, "View Full Book" link
-
 function makeChip(text, cls) {
     const span = document.createElement('span');
     span.className = 'eig-node ' + cls;
@@ -52,7 +38,7 @@ function uploadViewUrl(scope, param, scopedId, upload) {
     params.set('scope', scope);
     params.set(param, scopedId);
     params.set('document_name', upload.label);
-    return 'view_file.php?' + params.toString();
+    return 'view_files.php?' + params.toString();
 }
 
 // Renders an upload list as its own small nested <ul>, or null if empty.

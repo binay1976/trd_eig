@@ -37,7 +37,7 @@ function applyUploadToRow(targetId, documentName, originalName) {
     const viewCell = document.getElementById('view_' + elId);
     if (viewCell) {
         const context = getUploadContext();
-        viewCell.innerHTML = `<a href="view_files.php?${context.parameter}=${encodeURIComponent(targetId)}&document_name=${encodeURIComponent(documentName)}" target="_blank" rel="noopener"
+        viewCell.innerHTML = `<a href="view_file.php?${context.parameter}=${encodeURIComponent(targetId)}&document_name=${encodeURIComponent(documentName)}" target="_blank" rel="noopener"
             class="text-blue-600 hover:underline font-medium">View</a>`;
     }
 }

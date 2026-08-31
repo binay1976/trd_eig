@@ -49,17 +49,19 @@ function eig_build_umbrella_tree(PDO $pdo, string $umbrellaId): ?array
         'zone'       => $umbData['zone']     ?? '',
         'division'   => $umbData['division'] ?? '',
         'created_at' => $umbRow['created_at'] ?? '',
-        'uploads'    => eig_fetch_uploads($pdo, 'ULUPID', $umbrellaId),
+        'uploads'    => eig_fetch_uploads($pdo, 'UPID', $umbrellaId),
     ];
 
     $stmt = $pdo->prepare("
-        SELECT common_id, type_project, project_data
-        FROM umbrella_projects
-        WHERE type = 'PID' AND common_id LIKE ?
-        ORDER BY common_id
+    SELECT common_id, type_project, project_data
+    FROM umbrella_projects
+    WHERE type = 'PID'
+      AND LOCATE(CONCAT(?, '||PID'), common_id) = 1
+    ORDER BY common_id
     ");
-    $stmt->execute([like_escape($umbrellaId) . '||PID\\\\%']);
-    $projectRows = $stmt->fetchAll();
+
+    $stmt->execute([$umbrellaId]);
+    $projectRows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     $projects = [];
     foreach ($projectRows as $p) {
@@ -97,7 +99,7 @@ function eig_build_umbrella_tree(PDO $pdo, string $umbrellaId): ?array
             'type_project'     => $p['type_project'],
             'project_category' => $pData['project_category'] ?? '',
             'location'         => $pData['location']         ?? '',
-            'uploads'          => eig_fetch_uploads($pdo, 'ULPID', $p['common_id']),
+            'uploads'          => eig_fetch_uploads($pdo, 'PID', $p['common_id']),
             'forms'            => array_values($grouped),
         ];
     }
