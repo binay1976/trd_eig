@@ -388,7 +388,7 @@ $coverHtml = '<html><head><style>
 
     .pcee-footer { position: absolute; width: 100%; color: #e61313; font-weight: bold; font-size: 16px; font-weight: bold; letter-spacing: 0.5px; }
     .pcee-footer .left { position: absolute; top: 600px; left: 10%; }
-    .pcee-footer .right { position: absolute; top: 630px; left: 10%; }
+    .pcee-footer .right { position: absolute; top: 600px; right: 10%; }
 </style></head><body>
 <div class="page-border"></div>
 <div class="cover">

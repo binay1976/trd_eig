@@ -58,6 +58,10 @@ function loadPage(page) {
         pageFile = "admin_dashboard2.php";
         break;
 
+    case "std_forms":
+        pageFile = "/std_forms/select_project.php";
+        break;
+
     default:
         pageFile = "admin_dashboard.php";
     }

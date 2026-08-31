@@ -46,6 +46,11 @@
                 class="flex-1 px-5 py-3 bg-blue-950 text-white rounded-lg hover:bg-blue-600">
                 View & print
             </button>
+            <button
+                onclick="loadPage('std_forms')"
+                class="flex-1 px-5 py-3 bg-blue-950 text-white rounded-lg hover:bg-blue-600">
+                Standard Forms
+            </button>
 
         </div>
 
