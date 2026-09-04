@@ -174,7 +174,7 @@ $scopedId   = trim($_GET[$cfg['param']] ?? ''); // only set via URL for scope=fo
     window.EIG_SCOPED_VALUE = <?= json_encode($scopedId) ?>;
     <?php endif; ?>
 </script>
-<script src="<?= $isFullPage ? '/trd_eig/public/js/uploads.js' : 'js/uploads.js' ?>"></script>
+<script src="js/uploads.js"></script>
 
 <?php if ($isFullPage): ?>
 </body>

@@ -8,15 +8,20 @@ $umbrellaIds = $pdo->query(
      AND type = 'UPID' ORDER BY updated_at DESC"
 )->fetchAll(PDO::FETCH_COLUMN);
 
-// Document types shown in the table. The 'slug' is what gets stored as
-// document_id in umbrella_uploads; the 'id' is used to build DOM element ids
-// (Project_Approval, Project_Drawing, ...) so it must match data-document
-// with spaces turned into underscores.
-$documents = [
-    ['name' => 'Project Approval', 'slug' => 'project_approval'],
-    ['name' => 'Project Drawing',  'slug' => 'project_drawing'],
-    ['name' => 'Circuit Diagram',  'slug' => 'circuit_diagram'],
-];
+// Document types shown in the table — sourced from uploads_master (the
+// "List of ACTM performa uploads" master list) filtered to this level.
+// Equipments-level rows are handled separately later. The 'slug' is what
+// gets stored as document_id in project_uploads; it's derived from the
+// row's own id rather than the (long, punctuation-heavy) particulars text.
+$documents = array_map(
+    fn($d) => ['name' => $d['particulars'], 'slug' => 'doc_' . $d['id']],
+    $pdo->query("
+        SELECT id, particulars
+        FROM uploads_master
+        WHERE upload_level = 'Umbrella' AND status = 'ACTIVE'
+        ORDER BY sort_order ASC
+    ")->fetchAll()
+);
 ?>
 
 <div class="max-w-6xl mx-auto">

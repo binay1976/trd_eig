@@ -59,7 +59,7 @@ function loadPage(page) {
         break;
 
     case "std_forms":
-        pageFile = "/std_forms/select_project.php";
+        pageFile = "/std_forms/std_sidebar.php";
         break;
 
     default:

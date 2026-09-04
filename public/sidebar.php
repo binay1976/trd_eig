@@ -359,7 +359,7 @@ function injectUploadButton() {
     uploadBtn.textContent = 'Upload';
     uploadBtn.className = 'eig-upload-btn-injected px-5 py-2 text-sm font-medium bg-green-600 text-white rounded-lg hover:bg-green-700';
     uploadBtn.addEventListener('click', function () {
-        let url = 'uploads.php?scope=form';
+        let url = 'uploads_forms.php?scope=form';
         if (uid) url += '&unique_form_id=' + encodeURIComponent(uid);
         frame.src = url + '&embed=1';
     });
@@ -385,16 +385,30 @@ function injectUniqueFormId() {
     const badgeContainer = formNoRow ? formNoRow.parentElement : null;
     if (!formNoRow || !badgeContainer || badgeContainer.querySelector('.eig-unique-id-injected')) return;
 
+    // Drop the badge's third line (the descriptive title) — only FORM NO
+    // and FORM ID should show, side by side in one row — and stretch the
+    // badge into a long bar instead of an auto-width pill, so the long
+    // FORM ID string has room without wrapping the box awkwardly.
+    Array.from(badgeContainer.children).forEach(function (child) {
+        if (child !== formNoRow) child.remove();
+    });
+    badgeContainer.style.display = 'flex';
+    badgeContainer.style.alignItems = 'center';
+    badgeContainer.style.flexWrap = 'wrap';
+    badgeContainer.style.gap = '20px';
+    badgeContainer.style.width = '100%';
+    badgeContainer.style.boxSizing = 'border-box';
+
     const idRow = doc.createElement('div');
     idRow.className   = 'eig-unique-id-injected';
-    idRow.style.cssText = 'font-size:11px; opacity:.85; margin-top:2px;';
+    idRow.style.cssText = 'font-size:12px; opacity:.85;';
 
     const label = doc.createElement('span');
-    label.style.cssText = 'opacity:.75;font-size:11px;letter-spacing:.5px;';
+    label.style.cssText = 'opacity:.75;font-size:12px;letter-spacing:.5px;';
     label.textContent   = 'FORM ID';
 
     const value = doc.createElement('strong');
-    value.style.cssText = 'font-size:12px;';
+    value.style.cssText = 'font-size:14px;';
     value.textContent   = uid;
 
     idRow.appendChild(label);

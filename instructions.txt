@@ -11,8 +11,11 @@ Pull From Server :-
 scp -i "C:\Users\tc312\.ssh\etro_key" -r bdts1022@10.3.184.218:/var/www/trd_eig/* "C:\Users\tc312\Desktop\trd_eig\"
 
 Push to Server:- 
-scp -i "C:\Users\tc312\.ssh\etro_key" -r "C:\Users\tc312\Desktop\trd_eig\*" bdts1022@10.3.184.218:/var/www/trd_eig/
+scp -i "C:\Users\tc312\.ssh\etro_keys\etro" -r "C:\Users\tc312\Desktop\trd_eig\*" bdts1022@10.3.184.218:/var/www/trd_eig/
 scp -i "C:\Users\tc312\.ssh\etro_key" -r "C:\Users\tc312\Desktop\trd_eig\public\*" bdts1022@10.3.184.218:/var/www/trd_eig/public
+
+C:\Users\tc312\.ssh\etro_keys
+
 
 /var/www/trd_eig
 /var/www/trd_eig/app/
@@ -36,3 +39,22 @@ scp -i "C:\Users\tc312\.ssh\etro_key" -r "C:\Users\tc312\Desktop\trd_eig\public\
 
 php -S localhost:8000
 http://localhost:8000
+
+
+
+{"zone": "WR", 
+"division": "BCT", 
+"route_km": "189", 
+"to_km_no": "187", 
+"track_km": "184", 
+"from_km_no": "04", 
+"description": "Deepak is testing the umbrella creation testing 2", 
+"pink_book_no": "DF-2026-DFT-44DW", 
+"section_type": "Multiple Line", 
+"sanction_date": "2026-08-01", 
+"estimated_cost": "1456", 
+"executing_agency": "MRVC", 
+"sub_section_name": "MMCT-VR,VR-BL", 
+"type_of_traction": "2x25 KV", 
+"main_section_name": "MMCT-BL", 
+"umbrella_project_name": "MMCT"}

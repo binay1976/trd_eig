@@ -5,19 +5,20 @@ header('Content-Type: application/json; charset=utf-8');
 require_once __DIR__ . '/../config/database.php';
 
 $isProject = isset($_GET['project_id']);
-$targetId = trim($_GET[$isProject ? 'project_id' : 'umbrella_id'] ?? '');
-$validationId = str_replace(['\\', '|'], '', $targetId);
-$uploadType = strtoupper(trim($_GET['type'] ?? ($isProject ? 'PID' : 'UPID')));
+$isForm = isset($_GET['unique_form_id']);
+$targetId = trim($_GET[$isForm ? 'unique_form_id' : ($isProject ? 'project_id' : 'umbrella_id')] ?? '');
+$validationId = preg_replace('/[^A-Za-z0-9_-]/', '', $targetId);
+$uploadType = strtoupper(trim($_GET['type'] ?? ($isForm ? 'ULEID' : ($isProject ? 'PID' : 'UPID'))));
 
 if (
     $targetId === '' ||
-    !preg_match('/^[A-Za-z0-9_-]+$/', $validationId) ||
-    !in_array($uploadType, ['UPID', 'PID'], true)
+    $validationId === '' ||
+    !in_array($uploadType, ['UPID', 'PID', 'ULEID'], true)
 ) {
     http_response_code(400);
     echo json_encode([
         'success' => false,
-        'message' => 'Invalid Umbrella ID.'
+        'message' => 'Invalid upload request.'
     ]);
     exit;
 }

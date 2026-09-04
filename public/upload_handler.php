@@ -25,7 +25,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 // | Input
 $targetId = trim(
-    $_POST['project_id'] ?? $_POST['umbrella_id'] ?? ''
+    $_POST['project_id'] ?? $_POST['umbrella_id'] ?? $_POST['unique_form_id'] ?? ''
 );
 $documentId = trim(
     $_POST['document_id'] ?? ''
